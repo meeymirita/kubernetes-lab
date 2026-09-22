@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kubernetes Lab — от Compose к оркестрации</title>
+
+<style>
+  :root { --red: #0d9488; --red-dark: #065f56; --red-light: #e6faf7; --red-mid: #9ee3da; --ink: #1c1c1c; }
+  body { font-family: 'DejaVu Sans', 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; color: var(--ink); }
+  h1 { font-size: 28px; color: var(--red); margin-bottom: 4px; }
+  .subtitle { font-size: 15px; color: #555; margin-top: 0; margin-bottom: 18px; }
+  h2 { font-size: 21px; color: var(--red-dark); border-bottom: 3px solid var(--red-mid); padding-bottom: 4px; margin-top: 44px; }
+  h3 { font-size: 16px; color: #333; margin-top: 24px; margin-bottom: 6px; }
+  h4 { font-size: 14px; color: #555; margin-top: 16px; margin-bottom: 4px; }
+  p { margin: 7px 0; }
+  code { background: #f3f6fa; padding: 1px 5px; border-radius: 3px; font-family: 'DejaVu Sans Mono', Menlo, Consolas, monospace; font-size: 12.5px; }
+  pre { background: #f7fafd; border: 1px solid #d8e4f2; border-left: 4px solid var(--red); border-radius: 4px; padding: 10px 12px; font-family: 'DejaVu Sans Mono', Menlo, Consolas, monospace; font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 16px 0; font-size: 12.5px; }
+  th, td { border: 1px solid #ddd; padding: 6px 9px; text-align: left; vertical-align: top; }
+  th { background: var(--red-light); color: var(--red-dark); }
+  tr:nth-child(even) td { background: #fafafa; }
+  ul, ol { margin: 4px 0 10px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .tag { display: inline-block; color: #fff; font-size: 11px; font-weight: bold; padding: 1px 8px; border-radius: 3px; margin-bottom: 5px; }
+  .insight-box { background: var(--red-light); border: 1px solid var(--red-mid); border-left: 5px solid var(--red); border-radius: 4px; padding: 8px 14px; margin: 12px 0; }
+  .insight-box .tag { background: var(--red); }
+  .fix-box { background: #f1faf3; border: 1px solid #bfe4c7; border-left: 5px solid #2f9e4a; border-radius: 4px; padding: 8px 14px; margin: 6px 0 14px 0; }
+  .fix-box .tag { background: #2f9e4a; }
+  .note-box { background: #f4f4f6; border: 1px solid #d9d9e0; border-left: 5px solid #555a6e; border-radius: 4px; padding: 8px 14px; margin: 12px 0; }
+  .note-box .tag { background: #555a6e; }
+  .bash-box { background: #fdf6ec; border: 1px solid #f0dca0; border-left: 5px solid #b8860b; border-radius: 4px; padding: 8px 14px; margin: 12px 0; }
+  .bash-box .tag { background: #b8860b; }
+  .next-box { background: #fff8e6; border: 1px solid #f0dca0; border-left: 5px solid #e0a800; border-radius: 4px; padding: 8px 14px; margin: 14px 0 6px 0; font-size: 13px; }
+  .next-box .tag { background: #e0a800; color: #3a2a00; }
+  .next-box ul { margin: 4px 0 2px 0; }
+  details.deep { border: 1px dashed var(--red-mid); border-radius: 4px; margin: 12px 0; background: #fff; }
+  details.deep summary { cursor: pointer; padding: 8px 14px; font-weight: bold; color: var(--red-dark); background: #eef8f6; border-radius: 4px; list-style: none; }
+  details.deep summary::before { content: '▸ '; }
+  details.deep[open] summary::before { content: '▾ '; }
+  details.deep .deep-body { padding: 6px 16px 10px 16px; }
+  .toc { background: #f3faf9; border: 1px solid #d8e4f2; border-radius: 6px; padding: 14px 20px; margin: 16px 0 24px 0; }
+  .toc ol { padding-left: 18px; }
+  .small { font-size: 12px; color: #777; }
+  .fnref { color: var(--red); font-weight: bold; font-size: 0.75em; }
+  .glossary-item { margin: 0 0 10px 0; padding-left: 24px; text-indent: -24px; }
+  .glossary-item b { color: var(--red-dark); }
+  .step { margin: 22px 0 10px 0; }
+  .step-head { display: block; background: var(--red-dark); color: #fff; padding: 6px 12px; border-radius: 4px 4px 0 0; font-weight: bold; font-size: 14px; }
+  .step-head .num { display: inline-block; background: #fff; color: var(--red-dark); padding: 0 8px; border-radius: 3px; margin-right: 8px; font-size: 12.5px; }
+  .step-body { border: 1px solid var(--red-mid); border-top: none; border-radius: 0 0 4px 4px; padding: 10px 14px; }
+  .step-body pre { margin: 8px 0; }
+  .why { background: #fff8e6; border-left: 4px solid #e0a800; padding: 6px 12px; margin: 10px 0 4px 0; font-size: 13px; }
+  .why b { color: #8a6500; }
+  .file { font-family: 'DejaVu Sans Mono', Menlo, monospace; font-size: 12px; color: var(--red-dark); background: #e3f5f2; padding: 1px 6px; border-radius: 3px; }
+  .session-banner { background: linear-gradient(90deg, var(--red-dark), var(--red)); color: #fff; padding: 10px 16px; border-radius: 6px; margin: 28px 0 12px 0; font-size: 17px; font-weight: bold; }
+  .session-banner span { font-weight: normal; font-size: 12px; opacity: 0.9; margin-left: 10px; }
+  .page-break { display: none; }
+
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: #fff; }
+  .layout { display: flex; align-items: flex-start; }
+  .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; width: 300px; flex: 0 0 300px; background: var(--red-dark); color: #fff; padding: 52px 12px 16px 12px; box-sizing: border-box; font-size: 12.5px; transition: margin-left .2s; }
+  body.nav-collapsed .sidebar { margin-left: -300px; }
+  .sidebar .nav-title { font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 8px; }
+  .sidebar ul { list-style: none; padding-left: 0; margin: 0; }
+  .sidebar li { margin: 1px 0; }
+  .sidebar a { color: #fff; text-decoration: none; display: block; padding: 4px 8px; border-radius: 4px; }
+  .sidebar a:hover { background: #fff; color: var(--red-dark); }
+  .sidebar .nav-steps { padding-left: 8px; border-left: 2px solid rgba(255,255,255,.4); margin: 4px 0 6px 8px; }
+  .sidebar .nav-steps a { font-size: 11.5px; color: #d8f5ef; }
+  .sidebar .nav-steps a:hover { color: var(--red-dark); }
+  .sidebar .nav-session a { color: #fff; font-weight: bold; margin-top: 6px; background: rgba(255,255,255,.12); }
+  .sidebar a .mark { display: inline-block; width: 14px; color: #fff; font-weight: bold; }
+  .sidebar a.done { opacity: .75; }
+  .sidebar a.done .mark::before { content: '✓'; }
+  .sidebar .progress { margin: 6px 0 12px 0; }
+  .sidebar .bar { height: 8px; background: rgba(255,255,255,.25); border-radius: 4px; overflow: hidden; }
+  .sidebar .fill { height: 100%; width: 0; background: #fff; transition: width .3s; }
+  .sidebar .ptext { font-size: 11px; margin-top: 4px; color: #d8f5ef; }
+  .sidebar .reset { margin-top: 16px; background: transparent; border: 1px solid rgba(255,255,255,.5); color: #fff; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+  .sidebar .reset:hover { background: #fff; color: var(--red-dark); }
+  #nav-toggle { position: fixed; top: 10px; left: 10px; z-index: 20; background: var(--red); color: #fff; border: none; border-radius: 6px; width: 38px; height: 34px; font-size: 20px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+  #nav-toggle:hover { background: var(--red-dark); }
+  main { flex: 1; max-width: 960px; padding: 24px 44px 90px 44px; box-sizing: border-box; min-width: 0; }
+  body.nav-collapsed main { padding-left: 64px; }
+  h2, .step, .glossary-item, .session-banner { scroll-margin-top: 16px; }
+  a { color: var(--red); }
+  a.anchor { color: #7ecec2; text-decoration: none; margin-left: 6px; font-weight: normal; font-size: 0.8em; opacity: 0; }
+  h2:hover a.anchor, .step-head:hover a.anchor { opacity: 1; }
+  .step-head a.anchor { color: #fff; float: right; }
+  a.fnref { text-decoration: none; vertical-align: super; padding: 0 2px; }
+  a.fnref:hover { background: var(--red-light); border-radius: 3px; }
+  a.back { text-decoration: none; font-size: 0.9em; color: #4fa79c; margin-left: 4px; }
+  .glossary-item:target, .step:target { outline: 2px solid var(--red); outline-offset: 4px; border-radius: 4px; }
+  h2:target { background: var(--red-light); }
+  .done-label { display: inline-block; margin-right: 8px; vertical-align: middle; }
+  .done-label input { width: 18px; height: 18px; accent-color: var(--red); cursor: pointer; vertical-align: middle; }
+  .step-head .done-label input { accent-color: #fff; }
+  h2.is-done { color: #999; border-bottom-color: #ddd; }
+  .step.is-done .step-head { background: #9e9e9e; }
+  .step.is-done .step-body { border-color: #ddd; }
+  .totop { position: fixed; right: 24px; bottom: 24px; background: var(--red); color: #fff; text-decoration: none; padding: 8px 12px; border-radius: 20px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+  @media (max-width: 900px) { .sidebar { position: fixed; z-index: 10; } main { padding: 56px 16px 60px 16px; } body.nav-collapsed main { padding-left: 16px; } }
+  @media print { .sidebar, .totop, #nav-toggle, a.anchor, a.back, .done-label { display: none; } .layout { display: block; } main { max-width: none; padding: 0; } a { color: inherit; text-decoration: none; } details.deep { border: none; } details.deep summary { display: none; } details.deep .deep-body { display: block; } }
+</style>
+</head>
+<body id="top">
+<button id="nav-toggle">✕</button>
+<div class="layout">
+<nav class="sidebar" id="sidebar">
+<div class="nav-title">⎈ Kubernetes Lab</div>
+<div class="progress"><div class="bar"><div class="fill" id="progress-fill"></div></div><div class="ptext" id="progress-text">0 / 0</div></div>
+<ul>
+<li><a href="#sec-0" data-key="sec-0"><span class="mark"></span>0. Зачем этот лаб и что дальше</a></li>
+<li><a href="#sec-1" data-key="sec-1"><span class="mark"></span>1. Kubernetes с нуля: проблема и модель</a></li>
+<li><a href="#sec-2" data-key="sec-2"><span class="mark"></span>2. Pod и Deployment</a></li>
+<li><a href="#sec-3" data-key="sec-3"><span class="mark"></span>3. Service и DNS</a></li>
+<li><a href="#sec-4" data-key="sec-4"><span class="mark"></span>4. ConfigMap и Secret</a></li>
+<li><a href="#sec-5" data-key="sec-5"><span class="mark"></span>5. Volumes и PersistentVolumeClaim</a></li>
+<li><a href="#sec-6" data-key="sec-6"><span class="mark"></span>6. Probes: readiness и liveness</a></li>
+<li><a href="#sec-7" data-key="sec-7"><span class="mark"></span>7. Traefik как Ingress-контроллер</a></li>
+<li><a href="#sec-8" data-key="sec-8"><span class="mark"></span>8. HorizontalPodAutoscaler</a></li>
+<li><a href="#sec-9" data-key="sec-9"><span class="mark"></span>9. Пошаговая сборка (3 сессии)</a>
+<ul class="nav-steps">
+<li class="nav-session"><a href="#session-1">Сессия 1</a></li>
+<li><a href="#step-1-1" data-key="step-1-1"><span class="mark"></span>1.1 kind-кластер</a></li>
+<li><a href="#step-1-2" data-key="step-1-2"><span class="mark"></span>1.2 Первый Pod руками</a></li>
+<li><a href="#step-1-3" data-key="step-1-3"><span class="mark"></span>1.3 Deployment и самолечение</a></li>
+<li><a href="#step-1-4" data-key="step-1-4"><span class="mark"></span>1.4 Образ API в kind</a></li>
+<li><a href="#step-1-5" data-key="step-1-5"><span class="mark"></span>1.5 Service и DNS</a></li>
+<li class="nav-session"><a href="#session-2">Сессия 2</a></li>
+<li><a href="#step-2-1" data-key="step-2-1"><span class="mark"></span>2.1 ConfigMap и Secret</a></li>
+<li><a href="#step-2-2" data-key="step-2-2"><span class="mark"></span>2.2 PostgreSQL + PVC</a></li>
+<li><a href="#step-2-3" data-key="step-2-3"><span class="mark"></span>2.3 Adminer и frontend</a></li>
+<li><a href="#step-2-4" data-key="step-2-4"><span class="mark"></span>2.4 Probes: crash-тест</a></li>
+<li><a href="#step-2-5" data-key="step-2-5"><span class="mark"></span>2.5 requests/limits</a></li>
+<li class="nav-session"><a href="#session-3">Сессия 3</a></li>
+<li><a href="#step-3-1" data-key="step-3-1"><span class="mark"></span>3.1 Traefik в кластере</a></li>
+<li><a href="#step-3-2" data-key="step-3-2"><span class="mark"></span>3.2 IngressRoute</a></li>
+<li><a href="#step-3-3" data-key="step-3-3"><span class="mark"></span>3.3 metrics-server и HPA</a></li>
+<li><a href="#step-3-4" data-key="step-3-4"><span class="mark"></span>3.4 Production Hell</a></li>
+</ul>
+</li>
+<li><a href="#sec-10" data-key="sec-10"><span class="mark"></span>10. Чек-лист концепций</a></li>
+<li><a href="#sec-11" data-key="sec-11"><span class="mark"></span>11. Глоссарий терминов</a></li>
+<li><a href="#sec-12" data-key="sec-12"><span class="mark"></span>12. Вопросы для самопроверки</a></li>
+<li><a href="#sec-13" data-key="sec-13"><span class="mark"></span>13. Что дальше</a></li>
+</ul><button class="reset" id="reset-progress" title="Сбросить все галочки">Сбросить прогресс</button></nav>
+<main>
+
+<h1>⎈ Kubernetes Lab — от Compose к оркестрации</h1>
+<p class="subtitle">Этот лаб не вводит новый домен — он берёт ровно тот стек, что вы уже собрали в Traefik Lab
+(api + frontend + PostgreSQL + Adminer + Traefik), и переносит его на новый уровень: с одного хоста и
+<code>docker-compose.yml</code> на кластер из нескольких узлов, где решение "что и где запустить" принимает не
+человек командой <code>up</code>, а сам кластер — непрерывно, автоматически, при любом сбое. Каждый механизм
+Compose, который вы уже понимаете, здесь получает прямой аналог — и там, где аналогия перестаёт работать
+1-в-1, это отдельно объясняется.</p>
+
+<div class="toc">
+<b>Что нужно перед стартом:</b> пройденные Docker Lab и Traefik Lab (термины "образ", "контейнер", "сеть",
+"volume", <code>depends_on</code> + <code>healthcheck</code>, модель Traefik EntryPoint → Router → Middleware
+→ Service — здесь не объясняются заново, а используются как база для сравнения). Свежая установка Docker
+Desktop / Docker Engine.<br><br>
+<b>Что <u>не</u> входит в этот лаб</b> (см. раздел 13 «Что дальше»): Helm, StatefulSets и Operators,
+multi-node продакшен-кластеры, service mesh, GitOps. Цель — прочно понять базовые объекты и то, зачем вообще
+нужен переход от Compose к оркестрации, а не охватить всю экосистему сразу.</p>
+</div>
+
+<h2 id="sec-0"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-0"></label>0. Зачем этот лаб и что дальше <a class="anchor" href="#sec-0">#</a></h2>
+<p>Traefik Lab (раздел 13, «Что дальше») сам называет следующий шаг: <i>«Traefik + Kubernetes Ingress/IngressRoute
+CRD — тот же Traefik как ingress-контроллер в кластере — переход от одной машины к оркестрации подов»</i>. Этот
+лаб — именно этот шаг, развёрнутый в полноценную методичку.</p>
+<p>Домен нарочно не новый: та же кофейня или заказы здесь ни при чём — вы мигрируете уже знакомый вам API +
+frontend + PostgreSQL + Adminer из Traefik-лабы. Это осознанный выбор: изучать сразу два новых
+множества понятий (домен + Kubernetes) тяжелее и менее показательно, чем взять то, что уже работает в
+Compose, и построчно перевести на новый инструмент — тогда видно именно то, что меняется, а не тонет в
+шуме нового кода.</p>
+<div class="note-box"><span class="tag">ЛОКАЛЬНЫЙ КЛАСТЕР</span> Весь лаб — на <a href="https://kind.sigs.k8s.io/" target="_blank"><b>kind</b></a>
+(Kubernetes IN Docker): настоящий control plane и worker-узлы, только упакованные в Docker-контейнеры вместо
+отдельных машин. Это честная модель кластера, а не игрушечная эмуляция — тот же <code>kubectl</code>, те же
+объекты, тот же API, что и в проде.</div>
+
+<h2 id="sec-1"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-1"></label>1. Kubernetes с нуля: проблема и модель <a class="anchor" href="#sec-1">#</a></h2>
+
+<h3>1.1 Проблема, которую решает Kubernetes</h3>
+<p><code>docker compose up</code> — это одноразовая команда: вы сказали "подними эти пять сервисов", Compose
+их поднял на <b>одном</b> хосте и на этом всё, дальше он не следит за состоянием (если контейнер убьют
+руками, только <code>restart: always</code> его вернёт — примитивная реакция, не решение). А что если:</p>
+<ul>
+<li>сам хост, на котором крутится Compose, упал целиком — переносить сервисы некуда, второго хоста
+Compose не знает;</li>
+<li>нужно 20 реплик API, но так, чтобы они равномерно легли на 5 разных серверов, а не все 20 — на один
+перегруженный;</li>
+<li>один из серверов пора вывести на обслуживание — сервисы должны сами "перетечь" на другие, без ручного
+перезапуска.</li>
+</ul>
+<p>Kubernetes решает это, вводя между "что запустить" и "где запустить" отдельный слой принятия решений —
+<b>control plane</b>, — который смотрит на весь кластер сразу и постоянно, а не разово.</p>
+
+<h3>1.2 Из чего состоит кластер: Control Plane и Node</h3>
+<table>
+<tr><th>Компонент</th><th>Где живёт</th><th>Что делает</th></tr>
+<tr><td><code>kube-apiserver</code></td><td>Control plane</td><td>единственная точка входа: <code>kubectl</code> и всё остальное говорит только с ним, напрямую в кластер никто не лезет</td></tr>
+<tr><td><code>etcd</code></td><td>Control plane</td><td>распределённая база "желаемого состояния" (не логов — снимка того, что должно быть)</td></tr>
+<tr><td><code>scheduler</code></td><td>Control plane</td><td>для каждого нового Pod решает, на какой Node его запустить, по ресурсам и ограничениям</td></tr>
+<tr><td><code>controller-manager</code></td><td>Control plane</td><td>набор бесконечных циклов сверки: "а фактическое состояние совпадает с желаемым?"</td></tr>
+<tr><td><code>kubelet</code></td><td>каждый Node</td><td>агент, который реально дёргает container runtime, чтобы поднять/убить контейнер на этом узле</td></tr>
+<tr><td><code>kube-proxy</code></td><td>каждый Node</td><td>настраивает сетевые правила, чтобы Service находил свои поды (раздел 3)</td></tr>
+</table>
+<div class="insight-box"><span class="tag">ПОД КАПОТОМ</span> Это называется <b>reconciliation loop</b> (цикл
+сверки) — центральная идея Kubernetes, принципиально другая, чем в Compose. Вы не говорите "запусти 3 реплики
+прямо сейчас" — вы записываете в <code>etcd</code> факт "я хочу 3 реплики" через api-server, а
+controller-manager <i>бесконечно</i>, много раз в секунду, спрашивает "сколько реплик есть сейчас?" и если
+меньше трёх — просит scheduler создать недостающие. Убейте Pod руками — через секунды на его месте появится
+новый: не потому что кто-то заметил и отреагировал, а потому что цикл сверки работает всегда, а не только в
+момент вашей команды.</div>
+
+<h3>1.3 Pod — атомарная единица, не контейнер</h3>
+<p>В Kubernetes нельзя запустить "просто контейнер" — минимальная единица планирования это
+<b>Pod</b>. В подавляющем большинстве случаев Pod = один контейнер, и разница кажется чисто терминологической
+— но она заложена с прицелом на будущее: все контейнеры одного Pod'а всегда живут на одном Node, делят один
+IP-адрес и localhost между собой, и создаются/удаляются только вместе. Это даёт модель sidecar-контейнеров
+(вспомогательный процесс рядом с основным) — за рамками этого лаба, но объясняет, почему уровень абстракции
+не остановился на контейнере.</p>
+
+<h3>1.4 kind vs "настоящий" кластер</h3>
+<p>kind поднимает каждый "узел" кластера как обычный Docker-контейнер на вашей машине — то есть весь кластер
+физически находится внутри одного хоста, но <b>логически</b> устроен ровно так же, как многосерверный: у вас
+по-прежнему есть control plane и node(-ы), объекты API те же самые. Отличия, о которых нужно знать заранее:</p>
+<ul>
+<li>по умолчанию один узел совмещает роль control plane и worker — в проде это разнесено;</li>
+<li>Service типа <code>LoadBalancer</code> "из коробки" не получает внешний IP (некому его выдавать без
+облака) — в разделе 7 обходим это через <code>extraPortMappings</code> самого kind, пробрасывая порты
+хоста прямо на узел;</li>
+<li>сеть между подами внутри kind ничем не отличается по API от "взрослого" кластера — то, что вы напишете
+здесь, переносится на реальный облачный кластер почти без изменений.</li>
+</ul>
+
+<h2 id="sec-2"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-2"></label>2. Pod и Deployment <a class="anchor" href="#sec-2">#</a></h2>
+
+<h3>2.1 От сервиса в docker-compose.yml к манифесту</h3>
+<p>В Traefik-лабе сервис описывался так (раздел 4 Traefik Lab):</p>
+<pre><code>services:
+  api:
+    build: ./api
+    networks:
+      - traefik-public
+      - backend</code></pre>
+<p>Compose здесь совмещает две вещи: "что запустить" (образ, окружение) и "как оно живёт day-to-day"
+(перезапуск при падении). В Kubernetes это два разных объекта: <b>Pod</b> — описание "что запустить", и
+<b>Deployment</b> — обёртка, которая следит, чтобы нужное число Pod'ов существовало всегда.</p>
+
+<h3>2.2 Pod-манифест: минимальный и хрупкий</h3>
+<pre><code># pod-naive.yaml — просто для понимания, дальше так писать не будем
+apiVersion: v1
+kind: Pod
+metadata:
+  name: api-naive
+spec:
+  containers:
+    - name: api
+      image: traefik-lab-api:v1
+      ports:
+        - containerPort: 3000</code></pre>
+<div class="insight-box"><span class="tag">ПРЕДСКАЗАТЬ → ПРОВЕРИТЬ</span> Что произойдёт, если выполнить
+<code>kubectl delete pod api-naive</code>? В Compose с <code>restart: always</code> контейнер бы поднялся
+заново автоматически. Здесь — нет: голый Pod никто не пересоздаёт, потому что за ним не стоит ни один
+controller-manager цикл. Именно поэтому голые Pod'ы почти никогда не создают напрямую в реальной работе —
+только через Deployment.</div>
+
+<h3>2.3 Deployment: ReplicaSet и самолечение</h3>
+<pre><code># deployment-api.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: traefik-lab-api:v1
+          ports:
+            - containerPort: 3000</code></pre>
+<p>Deployment сам не создаёт Pod'ы напрямую — он создаёт промежуточный объект <b>ReplicaSet</b>, а уже
+ReplicaSet следит за количеством Pod'ов с нужными label'ами (<code>selector.matchLabels</code>). Deployment
+поверх ReplicaSet нужен ради одной конкретной вещи: rolling-обновлений — когда вы меняете
+<code>image:</code>, Deployment создаёт <i>новый</i> ReplicaSet и постепенно переключает трафик, вместо того
+чтобы убить все старые Pod'ы разом.</p>
+<div class="why"><b>Зачем:</b> это прямой аналог <code>docker compose up -d --scale api=3</code>, только с
+постоянным контролем, а не разовым действием: <code>replicas: 3</code> — не команда "создай 3", а
+утверждение "их всегда должно быть 3", которое controller-manager перепроверяет вечно.</div>
+
+<h2 id="sec-3"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-3"></label>3. Service и DNS <a class="anchor" href="#sec-3">#</a></h2>
+
+<h3>3.1 Проблема: у Pod'ов нет стабильного IP</h3>
+<p>В Docker-лабе (раздел 7.2) вы выяснили, что в пользовательской bridge-сети контейнеры находят друг друга
+по <i>имени</i>, а не по IP — потому что IP меняется при пересоздании контейнера, а имя нет. В Kubernetes
+проблема ещё острее: Pod пересоздаётся controller-manager'ом постоянно, и у <i>каждого нового</i> Pod'а — новый
+IP. Обращаться к Pod'у напрямую по IP бессмысленно уже через минуту.</p>
+
+<h3>3.2 Service: стабильный адрес поверх набора Pod'ов</h3>
+<pre><code># service-api.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+spec:
+  selector:
+    app: api
+  ports:
+    - port: 3000
+      targetPort: 3000</code></pre>
+<p>Service не "смотрит" на конкретные Pod'ы по имени — он находит их динамически через
+<code>selector</code>, ровно с теми же label'ами, что стоят в Deployment (<code>app: api</code>). Дальше
+любой Pod в кластере может обратиться по адресу <code>api-service</code> (или полностью —
+<code>api-service.default.svc.cluster.local</code>), и это имя <b>всегда</b> резолвится в один из живых
+Pod'ов с нужным label'ом — какие бы Pod'ы ни пересоздавались за кадром.</p>
+<div class="insight-box"><span class="tag">ПОД КАПОТОМ</span> Резолвинг имени <code>api-service</code> в IP
+делает <b>CoreDNS</b> — служебный Pod, который есть в любом кластере, аналог встроенного DNS Docker из
+раздела 7.2 Docker-лабы, только на уровне всего кластера, а не одной сети. А то, что запросы, пришедшие на
+IP Service, реально попадают на один из Pod'ов — заслуга <code>kube-proxy</code> на каждом узле: он
+настраивает правила <code>iptables</code> (или IPVS), которые перехватывают трафик к виртуальному IP Service
+и рассеивают его между реальными IP Pod'ов, по умолчанию round-robin. Это буквально тот же принцип, что
+"round-robin + healthcheck" у API в Traefik-лабе (раздел 2.4), только на уровень ниже — не HTTP, а сеть.</div>
+<p>Тип Service по умолчанию — <code>ClusterIP</code>: адрес виден только <i>внутри</i> кластера, что абсолютно
+верно для БД и внутреннего API — так же, как сеть <code>backend</code> в Traefik-лабе была недоступна
+напрямую из <code>traefik-public</code>. Наружу кластер будет открывать не Service напрямую, а Traefik
+(раздел 7).</p>
+
+<h2 id="sec-4"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-4"></label>4. ConfigMap и Secret <a class="anchor" href="#sec-4">#</a></h2>
+<p>В Compose переменные окружения жили в <code>environment:</code> прямо в YAML или в <code>.env</code>
+(раздел 8.4 Docker-лабы). В Kubernetes это разделено на два объекта — не по техническим причинам, а по
+смыслу данных: то, что не секрет (имя БД, фичефлаги) — в <b>ConfigMap</b>; то, что секрет (пароли, токены)
+— в <b>Secret</b>.</p>
+<pre><code># configmap-api.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+data:
+  DB_HOST: "postgres-service"
+  DB_NAME: "traefik_lab"</code></pre>
+<pre><code># secret-api.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: api-secret
+type: Opaque
+stringData:
+  DB_PASSWORD: "supersecret"</code></pre>
+<div class="insight-box"><span class="tag">ПОД КАПОТОМ</span> <code>stringData</code> — это удобство только на
+этапе написания манифеста: Kubernetes сам конвертирует значение в base64 и хранит в поле <code>data</code>.
+Важно понимать честно: <b>base64 — это не шифрование</b>, это обычное кодирование, которое разворачивается
+одной командой (<code>echo &lt;строка&gt; | base64 -d</code>). Secret защищён не форматом хранения, а тем,
+что доступ к объектам типа Secret в API можно ограничить через RBAC — то есть кто угодно, у кого есть доступ
+к <code>kubectl get secret -o yaml</code>, всё равно прочитает пароль. Для реальной секретности нужны внешние
+инструменты (Vault, Sealed Secrets, SOPS) — за рамками этого лаба.</div>
+<p>Подключение к Pod'у — через <code>envFrom</code>, без перечисления каждой переменной вручную:</p>
+<pre><code>containers:
+  - name: api
+    image: traefik-lab-api:v1
+    envFrom:
+      - configMapRef:
+          name: api-config
+      - secretRef:
+          name: api-secret</code></pre>
+
+<h2 id="sec-5"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-5"></label>5. Volumes и PersistentVolumeClaim <a class="anchor" href="#sec-5">#</a></h2>
+<p>Named volume из Docker-лабы (раздел 6.1) решал одну проблему: файловая система контейнера умирает вместе с
+контейнером. В Kubernetes проблема та же, но на уровень острее — Pod может быть пересоздан не просто на
+перезапуске, а вообще на <i>другом узле</i> кластера, и данные должны это пережить.</p>
+<table>
+<tr><th>Уровень</th><th>Аналог из Docker-лабы</th><th>Живёт</th></tr>
+<tr><td><code>emptyDir</code></td><td>ничего похожего — временная папка</td><td>только пока жив конкретный Pod; удобно для кэша между контейнерами одного Pod'а</td></tr>
+<tr><td><code>PersistentVolume</code> (PV)</td><td>реальное место на диске</td><td>независимо от Pod'а — администратор/StorageClass выделяет реальное хранилище</td></tr>
+<tr><td><code>PersistentVolumeClaim</code> (PVC)</td><td>named volume в <code>docker-compose.yml</code></td><td>«заявка» от Pod'а на PV нужного размера — то, с чем реально работает разработчик</td></tr>
+</table>
+<pre><code># pvc-postgres.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi</code></pre>
+<div class="why"><b>Зачем PVC, а не PV напрямую:</b> PVC — это уровень абстракции "сколько мне нужно места",
+а не "где физически это место". В kind по умолчанию есть <code>StorageClass</code>
+<code>standard</code>, который автоматически создаёт PV под каждый PVC (динамический provisioning) — в этом
+лабе вам вообще не придётся писать PV руками, ровно как в Compose вы не выбирали, на каком физическом диске
+хоста создастся named volume.</div>
+<pre><code>volumes:
+  - name: pgdata
+    persistentVolumeClaim:
+      claimName: postgres-pvc
+containers:
+  - name: postgres
+    volumeMounts:
+      - name: pgdata
+        mountPath: /var/lib/postgresql/data</code></pre>
+
+<h2 id="sec-6"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-6"></label>6. Probes: readiness и liveness <a class="anchor" href="#sec-6">#</a></h2>
+<p>Traefik-лаба (раздел 2.4) уже показала главную боль: "запущен" ≠ "готов принимать соединения". В Compose
+эту боль лечил <code>healthcheck</code> + <code>depends_on: condition: service_healthy</code>. В Kubernetes
+идея та же, но она расщепляется на <b>два разных вопроса</b>, которые в Compose не различались:</p>
+<table>
+<tr><th>Проба</th><th>Вопрос, на который отвечает</th><th>Что делает Kubernetes при провале</th></tr>
+<tr><td><b>readinessProbe</b></td><td>«готов ли Pod прямо сейчас принимать трафик?»</td><td>убирает Pod из Service (кластер перестаёт слать туда запросы), сам Pod <i>не перезапускает</i></td></tr>
+<tr><td><b>livenessProbe</b></td><td>«жив ли процесс вообще, или он завис насмерть?»</td><td>убивает и пересоздаёт контейнер</td></tr>
+</table>
+<div class="insight-box"><span class="tag">ПОЧЕМУ ЭТО ДВА РАЗНЫХ МЕХАНИЗМА</span> Представьте API, который
+на 30 секунд ушёл в тяжёлый запрос к БД и не отвечает на HTTP — но процесс жив, просто занят. Если бы это была
+одна проба "здоровья" (как <code>healthcheck</code> в Compose), Kubernetes убил бы контейнер и потерял бы
+прогресс запроса. С разделением: readinessProbe временно уберёт Pod из Service (трафик пойдёт на другие
+реплики), а livenessProbe, если у неё более щадящий порог, не тронет процесс — он честно жив, просто занят.</div>
+<pre><code>containers:
+  - name: api
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 3000
+      initialDelaySeconds: 3
+      periodSeconds: 5
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 3000
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      failureThreshold: 3</code></pre>
+<p>Для PostgreSQL проба обычно не HTTP, а команда — прямой аналог <code>pg_isready</code> из
+<code>healthcheck</code> Docker-лабы (раздел 8.3):</p>
+<pre><code>readinessProbe:
+  exec:
+    command: ["pg_isready", "-U", "postgres"]
+  periodSeconds: 5</code></pre>
+
+<h2 id="sec-7"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-7"></label>7. Traefik как Ingress-контроллер <a class="anchor" href="#sec-7">#</a></h2>
+<p>Service из раздела 3 виден только внутри кластера — снаружи попасть в него нечем, ровно как в
+Traefik-лабе сеть <code>backend</code> была недоступна извне <code>traefik-public</code>. Роль "единственной
+двери снаружи", которую в Traefik-лабе играл сам Traefik перед Docker-сетью, здесь играет
+<b>Ingress-контроллер</b> — и это будет буквально тот же Traefik, просто развёрнутый как Pod внутри
+кластера, а не как контейнер в Compose.</p>
+
+<h3>7.1 Provider меняется, модель — нет</h3>
+<p>В Traefik-лабе источником правды о маршрутах были Docker-labels (раздел 5): Traefik следил за Docker API и
+сам находил новые контейнеры с нужными labels. В кластере роль "источника правды" берёт на себя
+<b>Kubernetes CRD provider</b> — Traefik следит уже не за Docker, а за объектами Kubernetes API
+(<code>IngressRoute</code>), но сама модель EntryPoint → Router → Middleware → Service остаётся один в
+один той же.</p>
+<table>
+<tr><th>Traefik Lab (Docker labels)</th><th>Traefik в кластере (CRD)</th></tr>
+<tr><td><code>traefik.http.routers.api.rule=Host(...)</code></td><td><code>IngressRoute.spec.routes[].match: Host(...)</code></td></tr>
+<tr><td><code>traefik.http.middlewares...</code> label</td><td>отдельный объект <code>Middleware</code>, подключаемый через <code>middlewares:</code> в IngressRoute</td></tr>
+<tr><td>сервис = имя контейнера в Docker-сети</td><td>сервис = имя Kubernetes Service (раздел 3)</td></tr>
+</table>
+
+<h3>7.2 Почему нельзя просто "поставить деплоймент traefik" — нужен доступ снаружи kind</h3>
+<div class="insight-box"><span class="tag">ОСОБЕННОСТЬ KIND</span> В облаке Service типа <code>LoadBalancer</code>
+сам получает внешний IP от облачного провайдера. В kind провайдера нет — вместо этого узел, на котором сидит
+Traefik, настраивается так, чтобы порты 80/443 <i>самого хоста</i> пробрасывались прямо в узел через
+<code>extraPortMappings</code> — это задаётся один раз, при создании кластера (шаг 1.1), поэтому кластер
+проще сразу создать с нужной конфигурацией, чем пересоздавать его в сессии 3.</div>
+<pre><code># kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+      - containerPort: 443
+        hostPort: 443</code></pre>
+<p>Сам Pod с Traefik затем явно просит именно эти порты узла через <code>hostPort</code> в описании
+контейнера — это и есть мостик между "портом хоста" (как <code>-p 80:80</code> в Docker, раздел 7.3
+Docker-лабы) и портом внутри kind-узла.</p>
+
+<h3>7.3 IngressRoute: тот же роутинг, новый синтаксис</h3>
+<pre><code>apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: api-route
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`api.localhost`)
+      kind: Rule
+      services:
+        - name: api-service
+          port: 3000</code></pre>
+<div class="why"><b>Зачем:</b> <code>services.name</code> здесь — это имя Kubernetes Service (раздел 3), не
+имя контейнера. Traefik находит реальные Pod'ы не сам — за него это уже сделали Service и kube-proxy; сам
+Traefik просто шлёт трафик на стабильный ClusterIP Service, как и любой другой Pod в кластере.</div>
+
+<h2 id="sec-8"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-8"></label>8. HorizontalPodAutoscaler <a class="anchor" href="#sec-8">#</a></h2>
+<p>В Traefik-лабе (раздел 2.4) число реплик API было ровно тем числом, которое вы написали руками:
+<code>docker compose up -d --scale api=3</code>. Это число никогда не менялось само — даже если нагрузка
+выросла в 10 раз ночью, а днём упала до нуля. <b>HorizontalPodAutoscaler</b> (HPA) — это тот же
+reconciliation loop (раздел 1.2), только желаемое значение <code>replicas</code> он не читает из вашего
+манифеста, а вычисляет сам, на основе реальной метрики.</p>
+<pre><code># hpa-api.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50</code></pre>
+<div class="insight-box"><span class="tag">ПОД КАПОТОМ</span> HPA ничего не измеряет сам — раз в 15 секунд он
+спрашивает <code>metrics-server</code> (отдельный компонент, которого в kind по умолчанию нет — ставится
+руками в сессии 3), какой процент от <code>resources.requests.cpu</code> (раздел 9, шаг 2.5) реально
+потребляет каждый Pod. Отсюда критичное правило: <b>без заданных <code>requests</code> HPA работать не
+может</b> — ему не от чего считать проценты. Это ещё одна причина, почему requests/limits — не факультативная
+настройка "для красоты", а обязательное условие автоскейлинга.</div>
+
+<h2 id="sec-9"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-9"></label>9. Пошаговая сборка проекта (3 сессии) <a class="anchor" href="#sec-9">#</a></h2>
+<p>Три сессии переносят стек Traefik-лабы в kind целиком, шаг за шагом: сначала кластер и первые объекты на
+знакомом <code>whoami</code>-образе, затем полный стек с конфигами, данными и пробами готовности, и в финале
+— тот же Traefik снаружи и автоскейлинг вместо ручных "x3 реплики".</p>
+
+<div class="session-banner" id="session-1">Сессия 1 — Кластер и первые объекты <span>kind → Pod → Deployment → Service</span></div>
+
+<div class="step" id="step-1-1"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-1-1"></label><span class="num">Шаг 1.1</span>kind-кластер<a class="anchor" href="#step-1-1">#</a></span><div class="step-body">
+<div class="note-box"><span class="tag">ПРЕДПОЛАГАЕТСЯ</span> Установлены <code>kind</code>, <code>kubectl</code>
+и Docker Desktop (или Docker Engine) уже работают — это ровно то, что использовалось в Docker/Traefik-лабах.</div>
+<pre><code>mkdir -p k8s-lab && cd k8s-lab</code></pre>
+<pre><code># kind-config.yaml — см. объяснение в разделе 7.2
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+      - containerPort: 443
+        hostPort: 443</code></pre>
+<div class="why"><b>Зачем сразу, а не в сессии 3:</b> пересоздавать кластер ради изменения конфигурации узла
+означает потерять всё, что вы в нём построили за сессии 1–2. Порты, которые понадобятся Traefik, проще
+зарезервировать один раз на старте.</div>
+<pre><code>kind create cluster --name k8s-lab --config kind-config.yaml
+kubectl cluster-info
+kubectl get nodes</code></pre>
+</div></div>
+
+<div class="step" id="step-1-2"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-1-2"></label><span class="num">Шаг 1.2</span>Первый Pod руками<a class="anchor" href="#step-1-2">#</a></span><div class="step-body">
+<pre><code># pod-naive.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: whoami
+spec:
+  containers:
+    - name: whoami
+      image: traefik/whoami
+      ports:
+        - containerPort: 80</code></pre>
+<pre><code>kubectl apply -f pod-naive.yaml
+kubectl get pods
+kubectl port-forward pod/whoami 8080:80
+# в другом терминале:
+curl http://localhost:8080</code></pre>
+<div class="insight-box"><span class="tag">ПРЕДСКАЗАТЬ → ПРОВЕРИТЬ</span> Выполните <code>kubectl delete pod
+whoami</code>, подождите 10 секунд, затем снова <code>kubectl get pods</code>. Появился ли он заново?
+Объясните почему, опираясь на раздел 2.2, прежде чем читать дальше.</div>
+<pre><code>kubectl delete -f pod-naive.yaml</code></pre>
+</div></div>
+
+<div class="step" id="step-1-3"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-1-3"></label><span class="num">Шаг 1.3</span>Deployment и самолечение<a class="anchor" href="#step-1-3">#</a></span><div class="step-body">
+<pre><code># deployment-whoami.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whoami
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: whoami
+  template:
+    metadata:
+      labels:
+        app: whoami
+    spec:
+      containers:
+        - name: whoami
+          image: traefik/whoami
+          ports:
+            - containerPort: 80</code></pre>
+<pre><code>kubectl apply -f deployment-whoami.yaml
+kubectl get deployments,replicasets,pods</code></pre>
+<div class="insight-box"><span class="tag">ЭКСПЕРИМЕНТ</span> Найдите имя одного из Pod'ов (<code>kubectl get
+pods</code>) и удалите его: <code>kubectl delete pod &lt;имя&gt;</code>. Сразу же снова
+<code>kubectl get pods</code> — сравните с экспериментом шага 1.2. Затем посмотрите
+<code>kubectl get events --sort-by=.lastTimestamp</code>, чтобы увидеть, кто именно создал новый Pod
+(ReplicaSet), а не сам Deployment напрямую.</div>
+<pre><code>kubectl delete -f deployment-whoami.yaml</code></pre>
+</div></div>
+
+<div class="step" id="step-1-4"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-1-4"></label><span class="num">Шаг 1.4</span>Образ API в kind<a class="anchor" href="#step-1-4">#</a></span><div class="step-body">
+<div class="note-box"><span class="tag">ИСПОЛЬЗУЕМ ГОТОВОЕ</span> Каталог <code>api/</code> с
+Dockerfile и <code>server.js</code> — тот же самый, что вы собрали в Traefik-лабе (раздел 4, шаг 2.1).
+Скопируйте его в <code>k8s-lab/api/</code>.</div>
+<pre><code>docker build -t traefik-lab-api:v1 ./api</code></pre>
+<div class="why"><b>Зачем отдельная команда <code>kind load</code>, а не просто <code>docker build</code>:</b>
+kind-узел — это отдельный Docker-контейнер со своим собственным демоном containerd внутри, он не видит образы
+вашей локальной Docker-машины автоматически. Без явной загрузки Kubernetes попытается скачать образ
+<code>traefik-lab-api:v1</code> из публичного registry — и упадёт с <code>ErrImagePull</code>, потому что
+такого образа там, разумеется, нет.</div>
+<pre><code>kind load docker-image traefik-lab-api:v1 --name k8s-lab</code></pre>
+<pre><code># deployment-api.yaml — imagePullPolicy обязателен для локально загруженных образов
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: traefik-lab-api:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000</code></pre>
+<pre><code>kubectl apply -f deployment-api.yaml
+kubectl get pods -l app=api</code></pre>
+</div></div>
+
+<div class="step" id="step-1-5"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-1-5"></label><span class="num">Шаг 1.5</span>Service и DNS<a class="anchor" href="#step-1-5">#</a></span><div class="step-body">
+<pre><code># service-api.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+spec:
+  selector:
+    app: api
+  ports:
+    - port: 3000
+      targetPort: 3000</code></pre>
+<pre><code>kubectl apply -f service-api.yaml
+kubectl run debug --image=busybox -it --rm -- sh
+# внутри пода debug:
+wget -qO- http://api-service:3000
+exit</code></pre>
+<div class="insight-box"><span class="tag">ЭКСПЕРИМЕНТ</span> Повторите <code>wget</code> из пода
+<code>debug</code> раз десять подряд, и параллельно в другом терминале — <code>kubectl get pods -l app=api
+-o wide</code>, чтобы увидеть IP-адреса всех трёх Pod'ов. Смотрит ли ответ API (обычно возвращающий hostname
+контейнера) на разные Pod'ы поочерёдно? Это kube-proxy делает то же, что round-robin в Traefik-лабе, только
+уровнем ниже — на сети, а не на HTTP.</div>
+</div></div>
+
+<div class="session-banner" id="session-2">Сессия 2 — Полный стек: конфиги, данные, готовность <span>ConfigMap/Secret → PVC → probes → requests/limits</span></div>
+
+<div class="step" id="step-2-1"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-2-1"></label><span class="num">Шаг 2.1</span>ConfigMap и Secret<a class="anchor" href="#step-2-1">#</a></span><div class="step-body">
+<pre><code>kubectl create configmap api-config \
+  --from-literal=DB_HOST=postgres-service \
+  --from-literal=DB_NAME=traefik_lab
+
+kubectl create secret generic api-secret \
+  --from-literal=DB_PASSWORD=supersecret</code></pre>
+<div class="why"><b>Зачем через <code>kubectl create</code>, а не YAML-файл:</b> для Secret это ещё и
+практическая гигиена — YAML с <code>stringData</code> в открытом виде легко случайно закоммитить в git,
+тогда как императивная команда нигде не сохраняется как файл по умолчанию.</div>
+<pre><code># добавьте в deployment-api.yaml, в spec.template.spec.containers[0]:
+          envFrom:
+            - configMapRef:
+                name: api-config
+            - secretRef:
+                name: api-secret</code></pre>
+<pre><code>kubectl apply -f deployment-api.yaml
+kubectl exec -it deploy/api -- env | grep DB_</code></pre>
+</div></div>
+
+<div class="step" id="step-2-2"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-2-2"></label><span class="num">Шаг 2.2</span>PostgreSQL + PVC<a class="anchor" href="#step-2-2">#</a></span><div class="step-body">
+<pre><code># pvc-postgres.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+# deployment-postgres.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          envFrom:
+            - configMapRef:
+                name: api-config
+            - secretRef:
+                name: api-secret
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: api-secret
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432</code></pre>
+<pre><code>kubectl apply -f pvc-postgres.yaml -f deployment-postgres.yaml</code></pre>
+<div class="insight-box"><span class="tag">ЭКСПЕРИМЕНТ: ДАННЫЕ ПЕРЕЖИВАЮТ POD</span>
+<pre><code>kubectl exec -it deploy/postgres -- psql -U postgres -c \
+  "CREATE TABLE proof(id serial); INSERT INTO proof DEFAULT VALUES;"
+kubectl delete pod -l app=postgres
+# подождите, пока появится новый под (kubectl get pods -w)
+kubectl exec -it deploy/postgres -- psql -U postgres -c "SELECT * FROM proof;"</code></pre>
+Строка на месте, хотя физически это уже другой Pod с другим IP — потому что данные лежат не в файловой
+системе контейнера, а в PVC, который просто примонтировался заново.</div>
+</div></div>
+
+<div class="step" id="step-2-3"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-2-3"></label><span class="num">Шаг 2.3</span>Adminer и frontend<a class="anchor" href="#step-2-3">#</a></span><div class="step-body">
+<pre><code># deployment-adminer.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adminer
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: adminer }
+  template:
+    metadata:
+      labels: { app: adminer }
+    spec:
+      containers:
+        - name: adminer
+          image: adminer
+          ports: [{ containerPort: 8080 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adminer-service
+spec:
+  selector: { app: adminer }
+  ports: [{ port: 8080 }]</code></pre>
+<p>Frontend — тот же nginx:alpine-образ со статикой из Traefik-лабы (раздел 4, шаг 2.2), собирается и
+загружается в kind так же, как <code>api</code> в шаге 1.4:</p>
+<pre><code>docker build -t traefik-lab-frontend:v1 ./frontend
+kind load docker-image traefik-lab-frontend:v1 --name k8s-lab</code></pre>
+<pre><code>kubectl apply -f deployment-adminer.yaml
+# по аналогии опишите Deployment + Service для frontend самостоятельно
+# (образ traefik-lab-frontend:v1, containerPort 80) — это шаг для самопроверки</code></pre>
+</div></div>
+
+<div class="step" id="step-2-4"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-2-4"></label><span class="num">Шаг 2.4</span>Probes: crash-тест<a class="anchor" href="#step-2-4">#</a></span><div class="step-body">
+<pre><code># добавьте в deployment-api.yaml, в контейнер api:
+          readinessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3</code></pre>
+<pre><code>kubectl apply -f deployment-api.yaml
+kubectl get pods -l app=api -w</code></pre>
+<div class="insight-box"><span class="tag">CRASH-ТЕСТ</span> Временно смените <code>path: /health</code> на
+несуществующий <code>path: /does-not-exist</code> и примените манифест. Понаблюдайте за
+<code>kubectl get pods -l app=api -w</code> и <code>kubectl describe pod &lt;имя&gt;</code> несколько минут:
+сколько раз растёт счётчик <code>Restart Count</code>? Соответствует ли это <code>failureThreshold: 3</code>
+для livenessProbe? А что показывает <code>kubectl get endpoints api-service</code> в момент, когда Pod ещё не
+перезапущен, но уже не проходит readinessProbe — остался ли Pod в списке эндпоинтов Service? Верните
+<code>/health</code> обратно и объясните разницу в поведении между двумя пробами своими словами.</div>
+</div></div>
+
+<div class="step" id="step-2-5"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-2-5"></label><span class="num">Шаг 2.5</span>requests/limits<a class="anchor" href="#step-2-5">#</a></span><div class="step-body">
+<pre><code># добавьте в контейнер api:
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "300m"
+              memory: "128Mi"</code></pre>
+<div class="why"><b>Зачем:</b> <code>requests</code> — это то, что scheduler резервирует под Pod при выборе
+узла (обещание "не меньше"), <code>limits</code> — потолок, выше которого контейнеру не дадут уйти
+(<code>OOMKilled</code> для памяти, троттлинг для CPU). Без <code>requests</code> HPA (раздел 8) вообще не
+может посчитать процент утилизации — не от чего считать проценты.</div>
+<pre><code>kubectl apply -f deployment-api.yaml
+kubectl top pods  # если ругается на metrics-server — это ожидаемо, ставим в сессии 3</code></pre>
+</div></div>
+
+<div class="session-banner" id="session-3">Сессия 3 — Ingress и автоскейлинг <span>Traefik в кластере → IngressRoute → HPA → Production Hell</span></div>
+
+<div class="step" id="step-3-1"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-3-1"></label><span class="num">Шаг 3.1</span>Traefik в кластере<a class="anchor" href="#step-3-1">#</a></span><div class="step-body">
+<pre><code># CRD и RBAC — официальные манифесты Traefik, без Helm
+kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/v3.1/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml
+kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/v3.1/docs/content/reference/dynamic-configuration/kubernetes-crd-rbac.yml</code></pre>
+<pre><code># deployment-traefik.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: traefik }
+  template:
+    metadata:
+      labels: { app: traefik }
+    spec:
+      serviceAccountName: traefik-account
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+      nodeSelector:
+        ingress-ready: "true"
+      containers:
+        - name: traefik
+          image: traefik:v3.1
+          args:
+            - --providers.kubernetescrd
+            - --entrypoints.web.address=:80
+            - --api.dashboard=true
+          ports:
+            - name: web
+              containerPort: 80
+              hostPort: 80</code></pre>
+<div class="why"><b>Зачем <code>nodeSelector</code> + <code>tolerations</code> именно так:</b> это прямая
+привязка к <code>ingress-ready=true</code> и портам, зарезервированным в <code>kind-config.yaml</code> (шаг
+1.1, раздел 7.2) — без этой пары Pod с Traefik может уехать на узел, где хостовые порты 80/443 не
+прокинуты, и снаружи кластера он окажется недостижим.</div>
+<pre><code>kubectl apply -f deployment-traefik.yaml
+kubectl get pods -l app=traefik</code></pre>
+</div></div>
+
+<div class="step" id="step-3-2"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-3-2"></label><span class="num">Шаг 3.2</span>IngressRoute<a class="anchor" href="#step-3-2">#</a></span><div class="step-body">
+<pre><code># ingressroute.yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: app-routes
+spec:
+  entryPoints: [web]
+  routes:
+    - match: Host(`api.localhost`)
+      kind: Rule
+      services:
+        - name: api-service
+          port: 3000
+    - match: Host(`app.localhost`)
+      kind: Rule
+      services:
+        - name: frontend-service
+          port: 80
+    - match: Host(`db.localhost`)
+      kind: Rule
+      services:
+        - name: adminer-service
+          port: 8080</code></pre>
+<pre><code>kubectl apply -f ingressroute.yaml
+curl http://api.localhost/health
+curl http://app.localhost/
+curl http://db.localhost/</code></pre>
+<div class="insight-box"><span class="tag">СРАВНИТЕ С TRAEFIK-ЛАБОЙ</span> Откройте рядом раздел 6 Traefik Lab
+(«Сценарий: путь запроса от браузера до контейнера») и пройдите тот же путь для <code>api.localhost</code>
+здесь: EntryPoint <code>web</code> совпадает по имени буквально, Router — это теперь <code>routes[].match</code>
+внутри IngressRoute, а последний шаг «Traefik находит контейнер» заменился на «Traefik шлёт трафик на
+ClusterIP Service, а дальше это забота kube-proxy» (раздел 3.2). Сформулируйте это в одно предложение
+самостоятельно, прежде чем двигаться дальше.</div>
+</div></div>
+
+<div class="step" id="step-3-3"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-3-3"></label><span class="num">Шаг 3.3</span>metrics-server и HPA<a class="anchor" href="#step-3-3">#</a></span><div class="step-body">
+<pre><code>kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml</code></pre>
+<div class="insight-box"><span class="tag">ОЖИДАЕМАЯ ПОЛОМКА</span> Проверьте
+<code>kubectl get pods -n kube-system -l k8s-app=metrics-server</code> — с высокой вероятностью под будет в
+статусе <code>CrashLoopBackOff</code>. Посмотрите причину: <code>kubectl logs -n kube-system deploy/metrics-server</code>.
+Это не ошибка в ваших действиях — kind выпускает kubelet-сертификаты, которые metrics-server не может
+провалидировать штатно. Решение — известный флаг, который явно отключает проверку TLS just для
+разработческого кластера (в проде так делать нельзя):</div>
+<pre><code>kubectl patch deployment metrics-server -n kube-system --type='json' \
+  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+kubectl get pods -n kube-system -l k8s-app=metrics-server -w</code></pre>
+<pre><code>kubectl top pods   # теперь должно показать реальные CPU/Memory по requests из шага 2.5</code></pre>
+<pre><code># hpa-api.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 50 }</code></pre>
+<pre><code>kubectl apply -f hpa-api.yaml
+kubectl scale deployment api --replicas=1
+kubectl run load-generator --image=busybox --restart=Never -it --rm -- \
+  /bin/sh -c "while true; do wget -q -O- http://api-service:3000/ > /dev/null; done"</code></pre>
+<div class="insight-box"><span class="tag">НАБЛЮДАЙТЕ В РЕАЛЬНОМ ВРЕМЕНИ</span> В отдельном терминале:
+<code>kubectl get hpa api-hpa -w</code> и <code>kubectl get pods -l app=api -w</code>. Дайте нагрузке
+поработать минуту-две — сколько реплик добавил HPA? Остановите <code>load-generator</code>
+(<code>Ctrl+C</code>) и подождите ~5 минут (у HPA есть задержка на понижение, чтобы не "дёргаться") — вернулось
+ли число реплик к минимуму?</div>
+</div></div>
+
+<div class="step" id="step-3-4"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-3-4"></label><span class="num">Шаг 3.4</span>Production Hell<a class="anchor" href="#step-3-4">#</a></span><div class="step-body">
+<div class="note-box"><span class="tag">БЕЗ ПОДСКАЗОК</span> Как и в финалах Docker/Traefik-лаб — набор
+поломок, которые нужно продиагностировать самостоятельно, командами <code>kubectl describe</code>,
+<code>kubectl logs</code>, <code>kubectl get events</code>. Ниже — только симптомы.</div>
+<ul>
+<li>Задайте в <code>deployment-api.yaml</code> заведомо нереальный <code>requests.memory: "10Gi"</code> и
+примените. Pod не запускается — почему, и какой статус показывает <code>kubectl get pods</code>?</li>
+<li>Опечатайтесь в имени образа (<code>traefik-lab-api:v99</code>) — какой статус Pod'а вы увидите и чем он
+отличается от предыдущего случая?</li>
+<li>Удалите Secret <code>api-secret</code>, оставив на него ссылку в Deployment, и пересоздайте Pod
+(<code>kubectl delete pod</code>) — что произойдёт при старте нового Pod'а?</li>
+<li>Понизьте <code>limits.cpu</code> у API до совсем маленького значения и повторите нагрузочный тест шага
+3.3 — почему в этот раз HPA может не успевать реагировать так же резво?</li>
+</ul>
+</div></div>
+
+<h2 id="sec-10"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-10"></label>10. Чек-лист концепций <a class="anchor" href="#sec-10">#</a></h2>
+<ul>
+<li>Control plane vs Node: где принимается решение "что и где", а где оно физически выполняется.</li>
+<li>Reconciliation loop — почему это принципиально не то же самое, что разовая команда <code>docker
+compose up</code>.</li>
+<li>Pod как атомарная единица планирования, а не "просто контейнер".</li>
+<li>Pod vs Deployment vs ReplicaSet: кто из них что создаёт и зачем нужен именно такой слой абстракций.</li>
+<li>Service и selector: как трафик находит живые Pod'ы без знания их IP.</li>
+<li>Роль CoreDNS и kube-proxy — прямые аналоги встроенного DNS Docker и round-robin Traefik, но на уровне
+кластера.</li>
+<li>ConfigMap vs Secret — почему это разделение по смыслу данных, а не техническое, и что Secret на самом
+деле <i>не</i> шифрует данные.</li>
+<li>PVC vs PV vs emptyDir — что из этого переживает пересоздание Pod'а, а что нет.</li>
+<li>readinessProbe vs livenessProbe — два разных вопроса вместо одного <code>healthcheck</code> из Compose.</li>
+<li>requests vs limits — что резервирует scheduler, а что ограничивает kubelet во время работы.</li>
+<li>Traefik как Ingress-контроллер: то же EntryPoint → Router → Middleware → Service, но provider —
+Kubernetes CRD, а не Docker labels.</li>
+<li>Почему HPA не может работать без заданных <code>requests</code>.</li>
+<li>Особенности kind: почему <code>LoadBalancer</code> "из коробки" не работает и как это обходится через
+<code>extraPortMappings</code>.</li>
+</ul>
+
+<h2 id="sec-11"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-11"></label>11. Глоссарий терминов <a class="anchor" href="#sec-11">#</a></h2>
+<p class="glossary-item"><b>Control plane</b> — набор компонентов (api-server, etcd, scheduler,
+controller-manager), которые принимают решения о состоянии кластера, но сами контейнеры не запускают.</p>
+<p class="glossary-item"><b>Node</b> — машина (или, в kind, Docker-контейнер), на которой реально
+выполняются Pod'ы; на каждом Node работают kubelet и kube-proxy.</p>
+<p class="glossary-item"><b>Pod</b> — минимальная единица планирования: один или несколько контейнеров с
+общим IP и сетевым пространством.</p>
+<p class="glossary-item"><b>Deployment</b> — объект, который через ReplicaSet поддерживает заданное число
+копий Pod'а и управляет их обновлением.</p>
+<p class="glossary-item"><b>ReplicaSet</b> — промежуточный объект, который Deployment создаёт под собой и
+который реально следит за количеством Pod'ов с нужными label'ами.</p>
+<p class="glossary-item"><b>Service</b> — стабильный виртуальный адрес поверх динамического набора Pod'ов,
+находит их через <code>selector</code>.</p>
+<p class="glossary-item"><b>ClusterIP</b> — тип Service по умолчанию, доступный только внутри кластера.</p>
+<p class="glossary-item"><b>CoreDNS</b> — служебный Pod, резолвящий имена Service/Pod в IP внутри кластера.</p>
+<p class="glossary-item"><b>kube-proxy</b> — компонент на каждом Node, настраивающий сетевые правила для
+маршрутизации трафика от Service к реальным Pod'ам.</p>
+<p class="glossary-item"><b>ConfigMap</b> — объект для несекретных конфигурационных данных, подключаемых
+как переменные окружения или файлы.</p>
+<p class="glossary-item"><b>Secret</b> — объект для чувствительных данных; хранится в base64 (не
+шифровании) и требует RBAC для реальной защиты.</p>
+<p class="glossary-item"><b>PersistentVolumeClaim (PVC)</b> — заявка Pod'а на постоянное хранилище
+заданного размера, аналог named volume в Compose.</p>
+<p class="glossary-item"><b>StorageClass</b> — механизм, автоматически создающий реальное хранилище (PV)
+под каждый PVC.</p>
+<p class="glossary-item"><b>readinessProbe</b> — проверка готовности Pod'а принимать трафик; провал убирает
+Pod из Service.</p>
+<p class="glossary-item"><b>livenessProbe</b> — проверка "жив ли процесс"; провал приводит к перезапуску
+контейнера.</p>
+<p class="glossary-item"><b>requests / limits</b> — минимально резервируемые и максимально допустимые
+ресурсы (CPU/память) контейнера.</p>
+<p class="glossary-item"><b>Ingress-контроллер</b> — компонент (в этом лабе — Traefik), принимающий внешний
+трафик и маршрутизирующий его к Service внутри кластера.</p>
+<p class="glossary-item"><b>IngressRoute</b> — специфичный для Traefik объект (CRD) для описания маршрутов,
+аналог связки labels в Docker Compose-варианте.</p>
+<p class="glossary-item"><b>HorizontalPodAutoscaler (HPA)</b> — контроллер, автоматически меняющий
+<code>replicas</code> Deployment на основе метрик (обычно CPU).</p>
+<p class="glossary-item"><b>metrics-server</b> — компонент, собирающий метрики использования ресурсов с
+kubelet каждого узла и отдающий их HPA.</p>
+<p class="glossary-item"><b>kind</b> — инструмент для запуска настоящего Kubernetes-кластера внутри
+Docker-контейнеров, для локальной разработки и тестирования.</p>
+
+<h2 id="sec-12"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-12"></label>12. Вопросы для самопроверки / собеседования <a class="anchor" href="#sec-12">#</a></h2>
+<ul>
+<li>Чем принципиально отличается модель Kubernetes от <code>docker compose up</code> с точки зрения того,
+когда и как принимаются решения о состоянии системы?</li>
+<li>Зачем между Pod и "просто контейнером" вообще введён отдельный уровень абстракции, если в 95% случаев
+Pod содержит ровно один контейнер?</li>
+<li>Deployment создаёт Pod'ы напрямую или через промежуточный объект? Что это за объект и зачем он нужен
+отдельно?</li>
+<li>Как Service находит Pod'ы, если у них постоянно меняются IP-адреса? Какую роль в этом играет
+<code>selector</code>?</li>
+<li>В чём разница между readinessProbe и livenessProbe, и что делает Kubernetes в каждом из двух случаев
+провала проверки?</li>
+<li>Почему Secret в Kubernetes не является средством шифрования сам по себе?</li>
+<li>Чем PersistentVolumeClaim отличается от PersistentVolume, и что из них реально описывает
+разработчик, а что — инфраструктура/StorageClass?</li>
+<li>Почему HorizontalPodAutoscaler не может работать без заданных <code>resources.requests</code> у
+контейнера?</li>
+<li>Что изменилось в модели Traefik при переходе от Docker-labels к Kubernetes CRD provider, а что осталось
+неизменным?</li>
+<li>Почему в kind нельзя просто создать Service типа <code>LoadBalancer</code> и получить внешний IP, как в
+облаке — и как это обходится в этом лабе?</li>
+<li>Что произойдёт, если удалить Pod, управляемый Deployment, вручную? А если удалить сам Deployment?</li>
+</ul>
+
+<h2 id="sec-13"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-13"></label>13. Что дальше: дорожная карта <a class="anchor" href="#sec-13">#</a></h2>
+<table>
+<tr><th>Тема</th><th>Что это</th><th>Зачем после лабы</th><th>Почитать</th></tr>
+<tr><td>Helm</td><td>пакетный менеджер для Kubernetes-манифестов с шаблонизацией</td><td>то, что вы писали руками в сессии 2–3, в реальных проектах почти всегда ставится одной командой через готовый чарт</td><td><a href="https://helm.sh/docs/" target="_blank">helm.sh/docs</a></td></tr>
+<tr><td>StatefulSet</td><td>аналог Deployment, но для сервисов, которым важен стабильный порядковый номер и собственный PVC на каждую реплику</td><td>PostgreSQL в этом лабе — с одной репликой; при переходе на несколько реплик БД Deployment уже не подходит</td><td><a href="https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/" target="_blank">docs/statefulset</a></td></tr>
+<tr><td>Operators / CRD-контроллеры</td><td>кастомные контроллеры, расширяющие reconciliation loop под конкретное приложение (например, свой Postgres-operator)</td><td>следующий шаг после ручного управления БД в кластере</td><td><a href="https://kubernetes.io/docs/concepts/extend-kubernetes/operator/" target="_blank">docs/operator-pattern</a></td></tr>
+<tr><td>cert-manager</td><td>автоматический выпуск и обновление TLS-сертификатов внутри кластера</td><td>прямой аналог связки mkcert/Let's Encrypt из Traefik-лабы (раздел 8), но для кластера</td><td><a href="https://cert-manager.io/docs/" target="_blank">cert-manager.io/docs</a></td></tr>
+<tr><td>Prometheus + Grafana в кластере</td><td>метрики control plane, узлов и приложений через kube-state-metrics</td><td>наблюдаемость на уровне всего кластера, не только Traefik</td><td><a href="https://prometheus-operator.dev/" target="_blank">prometheus-operator.dev</a></td></tr>
+<tr><td>Service mesh (Istio / Linkerd)</td><td>слой mTLS, трассировки и тонкого управления трафиком между Pod'ами</td><td>то, что нужно, когда сервисов становится много и Traefik на входе уже не решает всех вопросов сети</td><td><a href="https://linkerd.io/2/overview/" target="_blank">linkerd.io/overview</a></td></tr>
+<tr><td>Multi-node production кластер (EKS/GKE/managed)</td><td>реальный облачный кластер вместо kind</td><td>здесь Service <code>LoadBalancer</code> наконец получает настоящий внешний IP, а не обходной путь через <code>extraPortMappings</code></td><td><a href="https://kubernetes.io/docs/setup/production-environment/" target="_blank">docs/production-environment</a></td></tr>
+<tr><td>GitOps (Argo CD / Flux)</td><td>состояние кластера описывается в git, а не применяется руками через <code>kubectl apply</code></td><td>логическое продолжение декларативной модели, с которой построен весь этот лаб</td><td><a href="https://argo-cd.readthedocs.io/" target="_blank">argo-cd.readthedocs.io</a></td></tr>
+</table>
+
+<a href="#top" class="totop">↑ Наверх</a>
+</main>
+</div>
+
+<script>
+(function () {
+  var KEY = 'k8s-lab-progress', NAVKEY = 'k8s-lab-nav';
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
+  var boxes = document.querySelectorAll('input.done');
+  function apply() {
+    var total = boxes.length, done = 0;
+    boxes.forEach(function (b) {
+      var k = b.dataset.key, on = !!state[k];
+      b.checked = on; if (on) done++;
+      var host = b.closest('.step') || b.closest('h2');
+      if (host) host.classList.toggle('is-done', on);
+      var nav = document.querySelector('.sidebar a[data-key="' + k + '"]');
+      if (nav) nav.classList.toggle('done', on);
+    });
+    document.getElementById('progress-fill').style.width = (total ? done / total * 100 : 0) + '%';
+    document.getElementById('progress-text').textContent = 'Пройдено: ' + done + ' / ' + total;
+  }
+  boxes.forEach(function (b) {
+    b.addEventListener('change', function () {
+      state[b.dataset.key] = b.checked;
+      localStorage.setItem(KEY, JSON.stringify(state));
+      apply();
+    });
+  });
+  document.getElementById('reset-progress').addEventListener('click', function () {
+    if (confirm('Сбросить все отметки?')) { state = {}; localStorage.removeItem(KEY); apply(); }
+  });
+  apply();
+
+  var toggle = document.getElementById('nav-toggle');
+  function setNav(collapsed) {
+    document.body.classList.toggle('nav-collapsed', collapsed);
+    localStorage.setItem(NAVKEY, collapsed ? '1' : '0');
+    toggle.textContent = collapsed ? '☰' : '✕';
+    toggle.title = collapsed ? 'Показать оглавление' : 'Скрыть оглавление';
+  }
+  toggle.addEventListener('click', function () { setNav(!document.body.classList.contains('nav-collapsed')); });
+  setNav(localStorage.getItem(NAVKEY) === '1' || window.innerWidth < 900);
+
+  document.querySelectorAll('.done-label').forEach(function (l) { l.addEventListener('click', function (e) { e.stopPropagation(); }); });
+})();
+</script>
+</body>
+</html>
