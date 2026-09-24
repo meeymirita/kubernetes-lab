@@ -122,7 +122,7 @@
 <li><a href="#sec-6" data-key="sec-6"><span class="mark"></span>6. Probes: readiness и liveness</a></li>
 <li><a href="#sec-7" data-key="sec-7"><span class="mark"></span>7. Traefik как Ingress-контроллер</a></li>
 <li><a href="#sec-8" data-key="sec-8"><span class="mark"></span>8. HorizontalPodAutoscaler</a></li>
-<li><a href="#sec-9" data-key="sec-9"><span class="mark"></span>9. Пошаговая сборка (3 сессии)</a>
+<li><a href="#sec-9" data-key="sec-9"><span class="mark"></span>9. Пошаговая сборка проекта (3 сессии)</a>
 <ul class="nav-steps">
 <li class="nav-session"><a href="#session-1">Сессия 1</a></li>
 <li><a href="#step-1-1" data-key="step-1-1"><span class="mark"></span>1.1 kind-кластер</a></li>
@@ -145,8 +145,8 @@
 </li>
 <li><a href="#sec-10" data-key="sec-10"><span class="mark"></span>10. Чек-лист концепций</a></li>
 <li><a href="#sec-11" data-key="sec-11"><span class="mark"></span>11. Глоссарий терминов</a></li>
-<li><a href="#sec-12" data-key="sec-12"><span class="mark"></span>12. Вопросы для самопроверки</a></li>
-<li><a href="#sec-13" data-key="sec-13"><span class="mark"></span>13. Что дальше</a></li>
+<li><a href="#sec-12" data-key="sec-12"><span class="mark"></span>12. Вопросы для самопроверки / собеседования</a></li>
+<li><a href="#sec-13" data-key="sec-13"><span class="mark"></span>13. Что дальше: дорожная карта</a></li>
 </ul><button class="reset" id="reset-progress" title="Сбросить все галочки">Сбросить прогресс</button></nav>
 <main>
 
@@ -162,7 +162,41 @@ Compose, который вы уже понимаете, здесь получа�
 <b>Что нужно перед стартом:</b> пройденные Docker Lab и Traefik Lab (термины "образ", "контейнер", "сеть",
 "volume", <code>depends_on</code> + <code>healthcheck</code>, модель Traefik EntryPoint → Router → Middleware
 → Service — здесь не объясняются заново, а используются как база для сравнения). Свежая установка Docker
-Desktop / Docker Engine.<br><br>
+Desktop / Docker Engine — то же самое, что уже использовалось в Docker/Traefik-лабах. А вот
+<a href="https://kind.sigs.k8s.io/docs/user/quick-start/#installation" target="_blank"><code>kind</code></a> и
+<a href="https://kubernetes.io/docs/tasks/tools/#kubectl" target="_blank"><code>kubectl</code></a> — новые
+инструменты именно для этого лаба, в Docker/Traefik-лабах они не использовались, их нужно поставить отдельно
+(методичка проверена на kind v0.24.0 / Kubernetes v1.31.0, см. шаг 1.1).<br><br>
+Ещё понадобится каталог <code>api/</code> (<code>Dockerfile</code> + <code>server.js</code> + <code>package.json</code>)
+из Traefik-лабы (см. шаг 1.4) — тот же самый, без изменений. Если Traefik-лаба проходилась давно или не до
+конца, все три файла продублированы здесь, разворачивать не обязательно, если каталог уже есть:
+<details class="deep"><summary>📁 api/ из Traefik-лабы (Dockerfile, server.js, package.json)</summary><div class="deep-body">
+<pre><code># api/Dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package.json .
+RUN npm install
+COPY server.js .
+CMD ["node", "server.js"]</code></pre>
+<pre><code>// api/server.js
+const express = require('express');
+const os = require('os');
+const app = express();
+app.get('/health', (_, res) =&gt; res.json({ status: 'ok' }));
+app.get('/users/:id', (req, res) =&gt;
+  res.json({ id: req.params.id, servedBy: os.hostname() }));
+app.listen(3000, () =&gt; console.log('api on :3000'));</code></pre>
+<pre><code>// api/package.json
+{
+  "name": "api",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}</code></pre>
+</div></details><br><br>
 <b>Что <u>не</u> входит в этот лаб</b> (см. раздел 13 «Что дальше»): Helm, StatefulSets и Operators,
 multi-node продакшен-кластеры, service mesh, GitOps. Цель — прочно понять базовые объекты и то, зачем вообще
 нужен переход от Compose к оркестрации, а не охватить всю экосистему сразу.</p>
@@ -213,7 +247,8 @@ Compose не знает;</li>
 сверки) — центральная идея Kubernetes, принципиально другая, чем в Compose. Вы не говорите "запусти 3 реплики
 прямо сейчас" — вы записываете в <code>etcd</code> факт "я хочу 3 реплики" через api-server, а
 controller-manager <i>бесконечно</i>, много раз в секунду, спрашивает "сколько реплик есть сейчас?" и если
-меньше трёх — просит scheduler создать недостающие. Убейте Pod руками — через секунды на его месте появится
+меньше трёх — сам создаёт недостающие Pod'ы, а scheduler уже решает, на каком Node каждый из них запустить.
+Убейте Pod руками — через секунды на его месте появится
 новый: не потому что кто-то заметил и отреагировал, а потому что цикл сверки работает всегда, а не только в
 момент вашей команды.</div>
 
@@ -241,7 +276,7 @@ IP-адрес и localhost между собой, и создаются/удал
 <h2 id="sec-2"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-2"></label>2. Pod и Deployment <a class="anchor" href="#sec-2">#</a></h2>
 
 <h3>2.1 От сервиса в docker-compose.yml к манифесту</h3>
-<p>В Traefik-лабе сервис описывался так (раздел 4 Traefik Lab):</p>
+<p>В Traefik-лабе сервис описывался так (Traefik Lab, шаг 2.1, раздел 9):</p>
 <pre><code>services:
   api:
     build: ./api
@@ -331,7 +366,7 @@ Pod'ов с нужным label'ом — какие бы Pod'ы ни пересо
 IP Service, реально попадают на один из Pod'ов — заслуга <code>kube-proxy</code> на каждом узле: он
 настраивает правила <code>iptables</code> (или IPVS), которые перехватывают трафик к виртуальному IP Service
 и рассеивают его между реальными IP Pod'ов, по умолчанию round-robin. Это буквально тот же принцип, что
-"round-robin + healthcheck" у API в Traefik-лабе (раздел 2.4), только на уровень ниже — не HTTP, а сеть.</div>
+"round-robin + healthcheck" у API в Traefik-лабе (шаг 2.4, раздел 9), только на уровень ниже — не HTTP, а сеть.</div>
 <p>Тип Service по умолчанию — <code>ClusterIP</code>: адрес виден только <i>внутри</i> кластера, что абсолютно
 верно для БД и внутреннего API — так же, как сеть <code>backend</code> в Traefik-лабе была недоступна
 напрямую из <code>traefik-public</code>. Наружу кластер будет открывать не Service напрямую, а Traefik
@@ -349,7 +384,7 @@ metadata:
   name: api-config
 data:
   DB_HOST: "postgres-service"
-  DB_NAME: "traefik_lab"</code></pre>
+  DB_NAME: "lab"</code></pre>
 <pre><code># secret-api.yaml
 apiVersion: v1
 kind: Secret
@@ -357,7 +392,7 @@ metadata:
   name: api-secret
 type: Opaque
 stringData:
-  DB_PASSWORD: "supersecret"</code></pre>
+  DB_PASSWORD: "labpass"</code></pre>
 <div class="insight-box"><span class="tag">ПОД КАПОТОМ</span> <code>stringData</code> — это удобство только на
 этапе написания манифеста: Kubernetes сам конвертирует значение в base64 и хранит в поле <code>data</code>.
 Важно понимать честно: <b>base64 — это не шифрование</b>, это обычное кодирование, которое разворачивается
@@ -374,6 +409,13 @@ stringData:
           name: api-config
       - secretRef:
           name: api-secret</code></pre>
+<div class="note-box"><span class="tag">ЧЕСТНО</span> <code>DB_NAME</code>/<code>DB_PASSWORD</code> взяты те же,
+что <code>POSTGRES_DB</code>/<code>POSTGRES_PASSWORD</code> в Traefik-лабе (раздел 9, шаг 2.3): <code>lab</code>/
+<code>labpass</code>. Но унаследованный <code>api/server.js</code> (раздел 9, шаг 2.1 Traefik Lab) эти переменные
+нигде не читает — в нём нет ни клиента PostgreSQL, ни обращения к <code>process.env</code> для БД.
+<code>kubectl exec -it deploy/api -- env | grep DB_</code> (шаг 2.1) честно покажет переменные внутри контейнера
+— механика ConfigMap/Secret здесь настоящая — но это учебная демонстрация самой механики, а не реальное
+подключение API к базе.</div>
 
 <h2 id="sec-5"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-5"></label>5. Volumes и PersistentVolumeClaim <a class="anchor" href="#sec-5">#</a></h2>
 <p>Named volume из Docker-лабы (раздел 6.1) решал одну проблему: файловая система контейнера умирает вместе с
@@ -412,7 +454,7 @@ containers:
         mountPath: /var/lib/postgresql/data</code></pre>
 
 <h2 id="sec-6"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-6"></label>6. Probes: readiness и liveness <a class="anchor" href="#sec-6">#</a></h2>
-<p>Traefik-лаба (раздел 2.4) уже показала главную боль: "запущен" ≠ "готов принимать соединения". В Compose
+<p>Traefik-лаба (шаг 2.4, раздел 9) уже показала главную боль: "запущен" ≠ "готов принимать соединения". В Compose
 эту боль лечил <code>healthcheck</code> + <code>depends_on: condition: service_healthy</code>. В Kubernetes
 идея та же, но она расщепляется на <b>два разных вопроса</b>, которые в Compose не различались:</p>
 <table>
@@ -512,7 +554,7 @@ spec:
 Traefik просто шлёт трафик на стабильный ClusterIP Service, как и любой другой Pod в кластере.</div>
 
 <h2 id="sec-8"><label class="done-label" title="Отметить раздел пройденным"><input type="checkbox" class="done" data-key="sec-8"></label>8. HorizontalPodAutoscaler <a class="anchor" href="#sec-8">#</a></h2>
-<p>В Traefik-лабе (раздел 2.4) число реплик API было ровно тем числом, которое вы написали руками:
+<p>В Traefik-лабе (шаг 2.4, раздел 9) число реплик API было ровно тем числом, которое вы написали руками:
 <code>docker compose up -d --scale api=3</code>. Это число никогда не менялось само — даже если нагрузка
 выросла в 10 раз ночью, а днём упала до нуля. <b>HorizontalPodAutoscaler</b> (HPA) — это тот же
 reconciliation loop (раздел 1.2), только желаемое значение <code>replicas</code> он не читает из вашего
@@ -551,8 +593,10 @@ spec:
 <div class="session-banner" id="session-1">Сессия 1 — Кластер и первые объекты <span>kind → Pod → Deployment → Service</span></div>
 
 <div class="step" id="step-1-1"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-1-1"></label><span class="num">Шаг 1.1</span>kind-кластер<a class="anchor" href="#step-1-1">#</a></span><div class="step-body">
-<div class="note-box"><span class="tag">ПРЕДПОЛАГАЕТСЯ</span> Установлены <code>kind</code>, <code>kubectl</code>
-и Docker Desktop (или Docker Engine) уже работают — это ровно то, что использовалось в Docker/Traefik-лабах.</div>
+<div class="note-box"><span class="tag">ПРЕДПОЛАГАЕТСЯ</span> Docker Desktop (или Docker Engine) уже работает —
+это ровно то, что использовалось в Docker/Traefik-лабах. А <code>kind</code> и <code>kubectl</code> — новые
+инструменты именно для этого лаба, их нужно поставить отдельно (см. «Что нужно перед стартом» в самом
+начале методички).</div>
 <pre><code>mkdir -p k8s-lab && cd k8s-lab</code></pre>
 <pre><code># kind-config.yaml — см. объяснение в разделе 7.2
 kind: Cluster
@@ -573,7 +617,11 @@ nodes:
 <div class="why"><b>Зачем сразу, а не в сессии 3:</b> пересоздавать кластер ради изменения конфигурации узла
 означает потерять всё, что вы в нём построили за сессии 1–2. Порты, которые понадобятся Traefik, проще
 зарезервировать один раз на старте.</div>
-<pre><code>kind create cluster --name k8s-lab --config kind-config.yaml
+<div class="note-box"><span class="tag">ВЕРСИЯ</span> Без явного <code>--image</code> kind сам берёт образ
+узла, соответствующий версии самого kind — через год это может оказаться другая версия Kubernetes с другим
+поведением (например, у HPA/metrics-server). Методичка проверена на kind v0.24.0 / Kubernetes v1.31.0
+(образ узла <code>kindest/node:v1.31.0</code>) — фиксируем его явно.</div>
+<pre><code>kind create cluster --name k8s-lab --image kindest/node:v1.31.0 --config kind-config.yaml
 kubectl cluster-info
 kubectl get nodes</code></pre>
 </div></div>
@@ -634,8 +682,9 @@ pods</code>) и удалите его: <code>kubectl delete pod &lt;имя&gt;</
 
 <div class="step" id="step-1-4"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-1-4"></label><span class="num">Шаг 1.4</span>Образ API в kind<a class="anchor" href="#step-1-4">#</a></span><div class="step-body">
 <div class="note-box"><span class="tag">ИСПОЛЬЗУЕМ ГОТОВОЕ</span> Каталог <code>api/</code> с
-Dockerfile и <code>server.js</code> — тот же самый, что вы собрали в Traefik-лабе (раздел 4, шаг 2.1).
-Скопируйте его в <code>k8s-lab/api/</code>.</div>
+Dockerfile и <code>server.js</code> — тот же самый, что вы собрали в Traefik-лабе (раздел 9, шаг 2.1).
+Скопируйте его в <code>k8s-lab/api/</code> (полный листинг — в блоке «Что нужно перед стартом» в начале
+методички, если каталога уже нет под рукой).</div>
 <pre><code>docker build -t traefik-lab-api:v1 ./api</code></pre>
 <div class="why"><b>Зачем отдельная команда <code>kind load</code>, а не просто <code>docker build</code>:</b>
 kind-узел — это отдельный Docker-контейнер со своим собственным демоном containerd внутри, он не видит образы
@@ -697,10 +746,10 @@ exit</code></pre>
 <div class="step" id="step-2-1"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-2-1"></label><span class="num">Шаг 2.1</span>ConfigMap и Secret<a class="anchor" href="#step-2-1">#</a></span><div class="step-body">
 <pre><code>kubectl create configmap api-config \
   --from-literal=DB_HOST=postgres-service \
-  --from-literal=DB_NAME=traefik_lab
+  --from-literal=DB_NAME=lab
 
 kubectl create secret generic api-secret \
-  --from-literal=DB_PASSWORD=supersecret</code></pre>
+  --from-literal=DB_PASSWORD=labpass</code></pre>
 <div class="why"><b>Зачем через <code>kubectl create</code>, а не YAML-файл:</b> для Secret это ещё и
 практическая гигиена — YAML с <code>stringData</code> в открытом виде легко случайно закоммитить в git,
 тогда как императивная команда нигде не сохраняется как файл по умолчанию.</div>
@@ -743,7 +792,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16-alpine
+          image: postgres:17
           envFrom:
             - configMapRef:
                 name: api-config
@@ -755,6 +804,11 @@ spec:
                 secretKeyRef:
                   name: api-secret
                   key: DB_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: api-config
+                  key: DB_NAME
           volumeMounts:
             - name: pgdata
               mountPath: /var/lib/postgresql/data
@@ -772,6 +826,12 @@ spec:
     app: postgres
   ports:
     - port: 5432</code></pre>
+<div class="why"><b>Зачем явный <code>POSTGRES_DB</code>, а не только <code>envFrom</code>:</b> образ
+<code>postgres</code> понимает только свои переменные (<code>POSTGRES_DB</code>/<code>POSTGRES_USER</code>/
+<code>POSTGRES_PASSWORD</code>), а не произвольные <code>DB_*</code> из ConfigMap — <code>DB_NAME</code> сам
+по себе он проигнорирует, и база при первом старте создастся под именем по умолчанию (<code>postgres</code>).
+Поэтому <code>POSTGRES_DB</code>, как и <code>POSTGRES_PASSWORD</code>, замаплен явно, из того же ключа
+<code>DB_NAME</code>.</div>
 <pre><code>kubectl apply -f pvc-postgres.yaml -f deployment-postgres.yaml</code></pre>
 <div class="insight-box"><span class="tag">ЭКСПЕРИМЕНТ: ДАННЫЕ ПЕРЕЖИВАЮТ POD</span>
 <pre><code>kubectl exec -it deploy/postgres -- psql -U postgres -c \
@@ -809,7 +869,7 @@ metadata:
 spec:
   selector: { app: adminer }
   ports: [{ port: 8080 }]</code></pre>
-<p>Frontend — тот же nginx:alpine-образ со статикой из Traefik-лабы (раздел 4, шаг 2.2), собирается и
+<p>Frontend — тот же nginx:alpine-образ со статикой из Traefik-лабы (раздел 9, шаг 2.2), собирается и
 загружается в kind так же, как <code>api</code> в шаге 1.4:</p>
 <pre><code>docker build -t traefik-lab-frontend:v1 ./frontend
 kind load docker-image traefik-lab-frontend:v1 --name k8s-lab</code></pre>
@@ -902,6 +962,22 @@ kubectl get pods -l app=traefik</code></pre>
 </div></div>
 
 <div class="step" id="step-3-2"><span class="step-head"><label class="done-label" title="Отметить шаг пройденным"><input type="checkbox" class="done" data-key="step-3-2"></label><span class="num">Шаг 3.2</span>IngressRoute<a class="anchor" href="#step-3-2">#</a></span><div class="step-body">
+<div class="note-box"><span class="tag">НЕ ЗАБЫВАЕМ ПРО BASICAUTH</span> В Traefik-лабе Adminer был закрыт
+паролем через <code>dash-auth</code> (раздел 9, шаг 2.3) — из таблицы раздела 7.1 label
+<code>traefik.http.middlewares...</code> превращается в отдельный объект <code>Middleware</code>. Без него
+<code>db.localhost</code> здесь остался бы полностью открытым, хотя в Traefik-лабе так не было.</div>
+<pre><code># adminer-auth-secret & middleware-adminer-auth.yaml
+kubectl create secret generic adminer-auth \
+  --from-literal=users='admin:$apr1$xxxxxxxx$yyyyyyyyyyyyyyyyyyyyyy'
+# хэш — тот же плейсхолдер, что и в Traefik-лабе (раздел 9, шаг 1.5): сгенерируйте свой через htpasswd</code></pre>
+<pre><code># middleware-adminer-auth.yaml
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: adminer-auth
+spec:
+  basicAuth:
+    secret: adminer-auth</code></pre>
 <pre><code># ingressroute.yaml
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -922,13 +998,15 @@ spec:
           port: 80
     - match: Host(`db.localhost`)
       kind: Rule
+      middlewares:
+        - name: adminer-auth
       services:
         - name: adminer-service
           port: 8080</code></pre>
-<pre><code>kubectl apply -f ingressroute.yaml
+<pre><code>kubectl apply -f middleware-adminer-auth.yaml -f ingressroute.yaml
 curl http://api.localhost/health
 curl http://app.localhost/
-curl http://db.localhost/</code></pre>
+curl -u admin:&lt;пароль&gt; http://db.localhost/</code></pre>
 <div class="insight-box"><span class="tag">СРАВНИТЕ С TRAEFIK-ЛАБОЙ</span> Откройте рядом раздел 6 Traefik Lab
 («Сценарий: путь запроса от браузера до контейнера») и пройдите тот же путь для <code>api.localhost</code>
 здесь: EntryPoint <code>web</code> совпадает по имени буквально, Router — это теперь <code>routes[].match</code>

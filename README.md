@@ -3,7 +3,7 @@
 ![Kubernetes](kubernetes.png)
 
 **Статус: ⚪ методичка готова, прохождение впереди.**
-**Сложность: средняя–высокая.** Нужны пройденные Docker Lab и Traefik Lab — сюда переносится ровно их стек, поэтому новый домен не изучается, а сразу нужны настоящие понятия Kubernetes.
+**Сложность: средняя–высокая.** Нужны пройденные Docker Lab и Traefik Lab — сюда переносится ровно их стек (включая каталог `api/`), поэтому новый домен не изучается, а сразу нужны настоящие понятия Kubernetes. `kind` и `kubectl` в Docker/Traefik-лабах не использовались — их нужно поставить отдельно перед стартом.
 
 ## О чём
 
@@ -11,7 +11,7 @@
 
 ## Стек
 
-Kubernetes (kind) + kubectl + Traefik как Ingress-контроллер — тот же стек приложения, что в Traefik Lab: Node.js API + статический frontend + PostgreSQL + Adminer.
+Kubernetes (kind) + kubectl + Traefik как Ingress-контроллер — тот же стек приложения, что в Traefik Lab: Node.js API + статический frontend + PostgreSQL 17 + Adminer. Проверено на kind v0.24.0 / Kubernetes v1.31.0 (образ узла `kindest/node:v1.31.0`).
 
 ## Формат
 
