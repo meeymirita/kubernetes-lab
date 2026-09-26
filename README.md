@@ -2,7 +2,7 @@
 
 ![Kubernetes](kubernetes.png)
 
-> **24.09.2026 — методичка вычитана и исправлена.** Что найдено и что поправлено — в [fixes/kubernetes.md](https://github.com/meeymirita/submodule-group-lab/blob/main/fixes/kubernetes.md) сборного репозитория.
+> **24.09.2026 — методичка вычитана и исправлена.** Что найдено и что поправлено — в [fixes/kubernetes.md](https://github.com/meeymirita/lab-fixes/blob/main/kubernetes.md) репозитория `lab-fixes`.
 
 **Статус: ⚪ методичка готова, прохождение впереди.**
 **Сложность: средняя–высокая.** Нужны пройденные Docker Lab и Traefik Lab — сюда переносится ровно их стек (включая каталог `api/`), поэтому новый домен не изучается, а сразу нужны настоящие понятия Kubernetes. `kind` и `kubectl` в Docker/Traefik-лабах не использовались — их нужно поставить отдельно перед стартом.
