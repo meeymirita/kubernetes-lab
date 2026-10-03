@@ -13,7 +13,7 @@
 
 ## Стек
 
-Kubernetes (kind) + kubectl + Traefik как Ingress-контроллер — тот же стек приложения, что в Traefik Lab: Node.js API + статический frontend + PostgreSQL 17 + Adminer. Проверено на kind v0.24.0 / Kubernetes v1.31.0 (образ узла `kindest/node:v1.31.0`).
+Kubernetes (kind) + kubectl + Traefik как Ingress-контроллер — тот же стек приложения, что в Traefik Lab: Node.js API + статический frontend + PostgreSQL 18 + Adminer. Проверено на kind v0.24.0 / Kubernetes v1.31.0 (образ узла `kindest/node:v1.31.0`).
 
 ## Формат
 
