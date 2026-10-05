@@ -1,6 +1,6 @@
 # Kubernetes Lab — от Compose к оркестрации
 
-![Kubernetes](kubernetes.png)
+![Kubernetes](https://meeymirita-files.storage.yandexcloud.net/kubernetes/kubernetes.png)
 
 > **24.09.2026 — методичка вычитана и исправлена.** Что найдено и что поправлено — в [fixes/devops/kubernetes.md](https://github.com/meeymirita/lab-fixes/blob/main/devops/kubernetes.md) репозитория `lab-fixes`.
 
