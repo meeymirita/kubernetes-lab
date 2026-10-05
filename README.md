@@ -13,11 +13,11 @@
 
 ## Стек
 
-Kubernetes (kind) + kubectl + Traefik как Ingress-контроллер — тот же стек приложения, что в Traefik Lab: Node.js API + статический frontend + PostgreSQL 18 + Adminer. Проверено на kind v0.24.0 / Kubernetes v1.31.0 (образ узла `kindest/node:v1.31.0`).
+Kubernetes (kind) + kubectl + Traefik как Ingress-контроллер — тот же стек приложения, что в Traefik Lab: Node.js API + статический frontend + PostgreSQL 18 + Adminer. Проверено на kind v0.33.0 / Kubernetes v1.37.0 (образ узла `kindest/node:v1.37.0`).
 
 ## Формат
 
-Методичка [`kubernetes.html`](kubernetes.html) — открывается в браузере, прогресс по чекбоксам сохраняется локально.
+Методичка [`kubernetes.html`](kubernetes.html) ([открыть на сайте](https://anitech.meeymirita.ru/works/kubernetes.html)) — открывается в браузере, прогресс по чекбоксам сохраняется локально.
 
 ## Локальный кластер
 
@@ -30,6 +30,10 @@ Kubernetes (kind) + kubectl + Traefik как Ingress-контроллер — т
 - **Сессия 3** — Traefik снаружи кластера через IngressRoute CRD; HorizontalPodAutoscaler вместо ручных "x3 реплики"; "Production Hell" — финальный сценарий без подсказок
 
 Разделы 1–8 методички — теория (Control Plane/Node, Pod, Deployment, Service, ConfigMap/Secret, Volumes, Probes, Traefik как Ingress-контроллер), раздел 9 — три сессии заданий, разделы 10–13 — чек-лист, глоссарий, вопросы для собеседования, что дальше.
+
+## Лицензия и авторство
+
+Код — MIT, тексты — CC BY 4.0, обложки и иллюстрации не покрыты (см. [LICENSE](LICENSE)). Кто что сделал: [NOTICE](NOTICE).
 
 ---
 
