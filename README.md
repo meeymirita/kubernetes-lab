@@ -17,7 +17,7 @@ Kubernetes (kind) + kubectl + Traefik как Ingress-контроллер — т
 
 ## Формат
 
-Методичка [`Kubernetes_Lab_Plan.html`](Kubernetes_Lab_Plan.html) — открывается в браузере, прогресс по чекбоксам сохраняется локально.
+Методичка [`kubernetes.html`](kubernetes.html) — открывается в браузере, прогресс по чекбоксам сохраняется локально.
 
 ## Локальный кластер
 
