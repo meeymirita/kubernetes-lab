@@ -38,3 +38,7 @@ Kubernetes (kind) + kubectl + Traefik как Ingress-контроллер — т
 ---
 
 Часть сборного репозитория лабораторных работ — [anitech-performance](https://github.com/meeymirita/anitech-performance).
+
+## План развития
+
+План переписывания в большую лабу (11.10.2026): [`kubernetes_lab_plan.md`](kubernetes_lab_plan.md). Это план, не готовая методичка; текущая методичка `kubernetes.html` пока без изменений.
