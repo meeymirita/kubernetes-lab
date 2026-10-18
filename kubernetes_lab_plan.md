@@ -2,21 +2,62 @@
 
 > Исходный список (13 разделов, ~120 пунктов из интернета) — в истории git, коммит `d6104a5`. Общие правила — `plan/README.md` родительского репозитория `anitech-performance`: режимы «с нуля»/«продолжение», **стандарт подробности («каждое слово объяснено»)**, размер.
 
+> **Обновлено 18.10.2026 (после переписывания Traefik-лабы):** предзнания и вход пересмотрены — см. раздел «Предзнания и вход» ниже. Ворота очерёдности выполнены: у Traefik-лабы есть проверенный `starter/` (шаг 10.5). Старая `kubernetes.html` пока на сайте без изменений.
+
 **Место в последовательности: №4 из 5** (после Traefik); общий порядок прохождения и создания — `plan/README.md`, раздел «Последовательность работ».
 
 ## Что делаем с готовой лабой
-Готовая `kubernetes.html` (3 сессии, ~10 ч) **переписывается в большую** (13 сессий, ~52 ч) в том же репозитории; Helm входит в неё. Сохраняется ядро (kind, Pod → Deployment → Service, ConfigMap/Secret, PVC, probes, Traefik как Ingress, HPA). Добавляются азбука, разбор каждого слова, namespace, rollout/rollback, Job/CronJob, StatefulSet, безопасность и весь Helm. Жёсткая зависимость готовой лабы от кода Traefik-лабы **снимается**: стек CoffeeShop лежит в `starter/`.
+Готовая `kubernetes.html` (3 сессии, ~10 ч) **переписывается в большую** (13 сессий, ~52 ч) в том же репозитории; Helm входит в неё. Сохраняется ядро (kind, Pod → Deployment → Service, ConfigMap/Secret, PVC, probes, Traefik как Ingress, HPA). Добавляются азбука, разбор каждого слова, namespace, rollout/rollback, Job/CronJob, StatefulSet, безопасность и весь Helm. Жёсткая зависимость готовой лабы от кода Traefik-лабы **снимается**: стек CoffeeShop лежит в `starter/` (сессия 10 Traefik-лабы, шаг 10.5); старый образ `traefik-lab-api:v1` больше не создаётся — новая лаба строит `coffeeshop-api:v1` из `starter/coffeeshop/api`.
 
 ## Паспорт
 
 | | |
 |---|---|
-| Режим | **продолжение Traefik-лабы** (её стек и образ API) **или самостоятельная** (`starter/`: исходники CoffeeShop, `Dockerfile`, `compose.yaml`; Docker и Compose объясняются в сессии 1 в нужном объёме) |
+| Режим | **продолжение Traefik-лабы** (её итоговая папка `starter/`: стек CoffeeShop за Traefik, `up.sh`, `smoke.sh`, `monitoring/`) **или самостоятельная** (та же `starter/` берётся готовой; Docker и Compose объясняются в сессии 1 в нужном объёме) |
 | Размер | 13 сессий × ~4 ч = **~52 ч**, ~90 шагов |
 | Сквозной проект | **CoffeeShop в Kubernetes**: API + frontend + PostgreSQL 18 + Adminer; в конце — собственный Helm chart |
 | Версии | kind v0.33 / Kubernetes 1.37 (как в готовой лабе), Helm — актуальная мажорная (**сверьтесь: на конец 2025 вышел Helm 4**) |
-| Решения | кластер — **kind** (вместо Minikube из исходного плана: легче и быстрее для ноутбука); Ingress Controller — **Traefik** (`ingress-nginx` объявлен выводимым из поддержки, по объявлению SIG Network — **сверьтесь**) |
+| Решения | кластер — **kind** (вместо Minikube из исходного плана: легче и быстрее для ноутбука); Ingress Controller — **Traefik v3.7** (`ingress-nginx` объявлен выводимым из поддержки, по объявлению SIG Network — **сверьтесь**); модель «роутер → middleware → сервис» уже известна из Traefik-лабы |
 | Ограничение | kind-кластеры греют ноутбук; Docker Desktop — только с согласия; перед тяжёлыми прогонами предупреждать |
+
+## Предзнания и вход (обновлено 18.10.2026)
+
+**Что надо знать до старта.** Лаба — не «Kubernetes с нуля вообще», а **миграция уже знакомого стека**. Поэтому нужны два блока знаний:
+
+| Что | Откуда | Где нужно в этой лабе | Статус |
+|---|---|---|---|
+| Образ, контейнер, `Dockerfile`, слои, registry (`kind load docker-image`) | Docker-лаба, сессии 3–5, 10 | сессия 3 (образ API в Pod), сессия 8 (безопасность контейнера) | **знания** (минимум — шаг 1.3) |
+| Сети и порты Docker, Compose (`depends_on`, `healthcheck`, тома, `.env`) | Docker-лаба, сессии 6–9 | Service и DNS (3), probes (6), PVC (7), ConfigMap/Secret (6) | **знания** |
+| Reverse proxy, роутер → middleware → сервис, метки, правила и приоритеты | Traefik-лаба, сессии 1–4 | Traefik как Ingress-контроллер (5), `IngressRoute` и Middleware CRD | **желательно**; без неё модель объясняется в сессии 5 заново и дольше |
+| `healthcheck`, балансировка, canary, rateLimit, retry, circuitBreaker | Traefik-лаба, сессии 5–6 | probes и rollout (4, 6), canary и weighted-сервис (12) | желательно |
+| TLS: mkcert, mTLS, ACME | Traefik-лаба, сессии 7–8 | TLS-секрет, `IngressRoute` с TLS, обзор cert-manager | желательно |
+| TCP/UDP-роутеры, метрики Prometheus, журнал JSON | Traefik-лаба, сессии 9–10 | `IngressRouteTCP`, наблюдаемость (11) | по желанию |
+
+**Что берётся готовым: `starter/` из шага 10.5 Traefik-лабы** (`~/traefik-lab/starter`, в репозиторий не кладётся — решение владельца 13.10):
+
+- `coffeeshop/api` — Node.js API с `/health`, `/menu`, `/orders` (с `Idempotency-Key`), `/info`, `/slow`, `/flaky`, `/drop`; образ собирается как `coffeeshop-api:v1` (**вместо** прежнего `traefik-lab-api:v1`);
+- `coffeeshop/web`, `coffeeshop/db/init.sql` (PostgreSQL 18), Adminer — те же сервисы, имена `db`, `api`, `web`, `adminer`;
+- `edge/` — метки Traefik как **образец для перевода** в манифесты (`rule`, `middlewares`, `healthcheck`, `loadbalancer.server.port`);
+- `smoke.sh` — **приёмочный тест**: сессии Kubernetes-лабы доказывают, что стек в кластере отвечает так же, как в Compose (адреса `shop.localhost`, `adminer.shop.localhost`, `/api` без префикса, две копии API, пароль админки, HTTPS);
+- `monitoring/` — Prometheus и Grafana: в Kubernetes ставятся через Helm (сессия 11).
+
+**Что переносится из Traefik-лабы в Kubernetes (ориентир для написания, точный состав — по мере работы):**
+
+| Traefik-лаба | Kubernetes-лаба |
+|---|---|
+| метки роутера (3.2–3.5) | `Ingress` и `IngressRoute` (5.5) |
+| middlewares: `stripPrefix`, `headers`, `basicAuth`, `chain` (4.x) | `Middleware` (CRD Traefik) (5.6) |
+| `rateLimit`, `retry`, `circuitBreaker` (5.x) | `Middleware`; ограничения на уровне кластера — `NetworkPolicy`, `ResourceQuota` (9) |
+| реплики, healthcheck (6.1–6.2) | `Deployment` (`replicas`), `readiness`/`liveness` probes (4, 6) |
+| canary и blue/green (6.4, 6.6) | rolling update и rollback (4), веса `TraefikService` (12) |
+| mkcert, mTLS, ACME (7, 8) | TLS-секрет, `TLSOption`, обзор cert-manager (5, 9) |
+| TCP и UDP-роутеры (9.2–9.3) | `IngressRouteTCP`, `IngressRouteUDP` (необязательно) |
+| метрики, журнал, дерево вопросов (10.1–10.4) | Prometheus через Helm, `kubectl logs`, дерево вопросов для Pod и Service (11) |
+| `up.sh`, `smoke.sh`, Production Hell (10.5–10.6) | итоговый Helm chart с `helm test` и свой Production Hell (13) |
+
+**Что не требуется:** проходить Traefik-лабу целиком, знать ACME и плагины; всё, что нужно, повторяется на новом материале. **Что обязательно поставить отдельно:** `kind`, `kubectl`, `helm` (в Docker- и Traefik-лабах их не было).
+
+**Ворота очерёдности выполнены:** лаба N+1 не пишется целиком, пока у N нет проверенного `starter/` — у Traefik он собран и проверен (18.10.2026: поднят с чистого стенда, `smoke.sh` — «всё в порядке»). Версии на момент написания перепроверить: Helm, Traefik chart, судьба `ingress-nginx`, Calico/Cilium в kind.
 
 **Откуда темы исходного списка:** разд. 1 → сессия 1; 2 → 2; 3 → 3; 4 → 4; 5 → 5; 6 → 6; 7 → 7; 8 → 8; 9 → 10; 10 → 11; 11–12 → 12; 13 → 13. От себя добавлено (нужно для эксплуатации): сессия 9 «Безопасность» и `kustomize` в 13.
 
