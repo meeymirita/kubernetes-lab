@@ -192,7 +192,7 @@ spec:
 
 ### links
 - https://prometheus-operator.dev/docs/developer/getting-started/ | ServiceMonitor | Prometheus Operator: Getting Started
-- https://doc.traefik.io/traefik/observe/metrics/overview/ | метрики Traefik | Traefik: Metrics
+- https://doc.traefik.io/traefik/observe/metrics/ | метрики Traefik | Traefik: Metrics
 
 ## 11.5 Grafana: дашборд для CoffeeShop | short: Grafana | est: ~45 мин
 ### intro

@@ -385,7 +385,7 @@ kubectl get pod -n kube-system -l component=kube-apiserver -o jsonpath='{.items[
 ### links
 - https://kubernetes.io/docs/concepts/containers/images/#image-names | имена образов | Kubernetes: Images
 - https://docs.sigstore.dev/cosign/signing/overview/ | подпись образов | Sigstore: Cosign
-- https://trivy.dev/latest/ | сканер Trivy | Trivy
+- https://trivy.dev/latest/docs/ | сканер Trivy | Trivy
 
 ## 9.7 🔨 Политика есть, а не работает | short: 🔨 Политика не работает | est: ~35 мин
 ### intro

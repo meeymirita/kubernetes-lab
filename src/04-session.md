@@ -129,7 +129,7 @@ kubectl get pods -l app=coffeeshop-api
 - Что произойдёт при следующем `apply` файла, если `replicas` в кластере и в файле разошлись?
 
 ### links
-- https://kubernetes.io/docs/tasks/run-application/scale-stateless-application-deployment/ | масштабирование Deployment | Kubernetes: Scale a Deployment
+- https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#scaling-a-deployment | масштабирование Deployment | Kubernetes: Scale a Deployment
 
 ## 4.3 Rolling update: maxSurge и maxUnavailable | short: Rolling update | est: ~40 мин
 ### intro
