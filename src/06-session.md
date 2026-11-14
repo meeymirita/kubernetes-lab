@@ -159,11 +159,14 @@ spec:
 EOF
 kubectl apply -f manifests/06-deployment-db.yaml
 kubectl wait --for=condition=Available deployment/db --timeout=60s
+until kubectl exec deploy/db -- pg_isready -U coffeeshop >/dev/null 2>&1; do sleep 2; done
 ```
 
 ### result
 ```out auto
 ```
+
+Строка с `until … pg_isready` — не украшение: статус `Available` означает лишь «контейнер запущен», а PostgreSQL после старта ещё несколько секунд инициализирует базу и не принимает подключения (команда `psql` в этот момент упала бы с «No such file or directory» на сокет). Нормально это решают **пробы готовности** (readiness probe, сессия 8.2); пока ждём вручную.
 
 Три детали, которые легко упустить:
 
@@ -194,10 +197,12 @@ kubectl wait --for=condition=Available deployment/db --timeout=60s
 :::
 
 ```bash run
+until kubectl exec deploy/db -- pg_isready -U coffeeshop >/dev/null 2>&1; do sleep 2; done
 kubectl exec deploy/db -- psql -U coffeeshop -d coffeeshop -c "CREATE TABLE IF NOT EXISTS t(id serial, note text); INSERT INTO t(note) VALUES ('переживу пересоздание');"
 podname=$(kubectl get pods -l app=db -o jsonpath='{.items[0].metadata.name}')
 kubectl delete pod "$podname"
 kubectl wait --for=condition=Available deployment/db --timeout=60s
+until kubectl exec deploy/db -- pg_isready -U coffeeshop >/dev/null 2>&1; do sleep 2; done
 kubectl exec deploy/db -- psql -U coffeeshop -d coffeeshop -c "SELECT * FROM t;"
 ```
 
