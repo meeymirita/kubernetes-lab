@@ -16,6 +16,7 @@ dur: ~4 ч
 - Узел (сам по себе) тоже может достучаться до любого Pod на себе и на других узлах.
 
 ```bash run
+cd ~/kubernetes-lab
 kubectl get pods -l app=coffeeshop-api -o wide
 pod_ip=$(kubectl get pods -l app=coffeeshop-api -o jsonpath='{.items[0].status.podIP}')
 kubectl run net-test --image=busybox:1.36 --rm -it --restart=Never -- wget -qO- "http://$pod_ip:3000/health"
@@ -101,7 +102,7 @@ kubectl delete svc coffeeshop-api-nodeport
 :::
 
 ```bash run
-kubectl run dns-check --image=busybox:1.36 --rm -it --restart=Never -- sh -c "cat /etc/resolv.conf && nslookup coffeeshop-api"
+kubectl run dns-check --image=busybox:1.36 --rm -it --restart=Never -- sh -c "sleep 2; cat /etc/resolv.conf && nslookup coffeeshop-api"
 ```
 
 ### result
@@ -144,13 +145,30 @@ kubectl run dns-check --image=busybox:1.36 --rm -it --restart=Never -- sh -c "ca
 ```bash run
 helm repo add traefik https://traefik.github.io/charts
 helm repo update
-helm install traefik traefik/traefik \
-  --namespace traefik --create-namespace \
-  --set ports.web.hostPort=80 --set ports.websecure.hostPort=443 \
-  --set hostNetwork=true --set service.type=ClusterIP
-kubectl get pods -n traefik
+cat > traefik-values.yaml <<'EOF'
+# Traefik в kind: слушаем 80/443 на том узле, куда проброшены порты хоста (control-plane)
+ports:
+  web:
+    hostPort: 80
+  websecure:
+    hostPort: 443
+service:
+  spec:
+    type: ClusterIP
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+EOF
+helm install traefik traefik/traefik --version 42.4.0 \
+  --namespace traefik --create-namespace -f traefik-values.yaml --wait --timeout 3m
+kubectl get pods -n traefik -o wide
 kubectl get ingressclass
 ```
+
+Что в `traefik-values.yaml`. `hostPort` пробрасывает порт узла в Pod, а порты 80/443 **узла** control-plane мы ещё в шаге 1.5 пробросили на твой Mac через `extraPortMappings`. Но это работает, только если Pod Traefik оказался именно на control-plane: поэтому `nodeSelector` выбирает этот узел, а `tolerations` разрешают сесть на него, несмотря на «пятно» (`taint`) `NoSchedule`, которым kind закрывает control-plane для обычной нагрузки (подробно про taints — сессия 8). `service.spec.type: ClusterIP` — у `kind` нет облачного балансировщика, а `LoadBalancer` по умолчанию навечно остался бы в `<pending>`. Версия chart закреплена (`--version 42.4.0`): так у тебя установится то же, что проверено при написании лабы (Traefik v3.7).
 
 ### result
 ```out auto
@@ -165,7 +183,8 @@ Ingress Controller — это концептуально тот же Traefik, ч
 В Kubernetes у Traefik нет Docker-провайдера (нет `docker.sock` — мы вообще не в Docker Compose) — вместо него Traefik использует **Kubernetes-провайдер**: он слушает API-сервер через `kubectl`-подобный доступ (с правами через RBAC, сессия 9.1) и строит маршруты из `Ingress`/`IngressRoute`.
 
 ### deep Если не получилось
-- **Pod Traefik не стартует (`CrashLoopBackOff`)** — чаще всего конфликт порта 80/443 на узле (`hostNetwork: true` требует, чтобы порт был свободен именно на том узле, где запланирован Pod); проверь, не занят ли порт другим процессом.
+- **Pod Traefik не стартует (`CrashLoopBackOff`)** — Pod остаётся в `Pending`, если не подошёл `nodeSelector`/`tolerations` (проверь `kubectl describe pod -n traefik`), а при конфликте порта 80/443 на узле (`hostPort` требует, чтобы порт был свободен именно на том узле, где запланирован Pod) он не стартует; проверь, не занят ли порт другим процессом.
+- **`Error: INSTALLATION FAILED: values don't meet the specifications of the schema`** — в новых версиях chart схема значений строгая: `service.type` больше нельзя, тип Service задаётся в `service.spec.type`; сверься с `helm show values traefik/traefik`.
 
 ### quiz
 - Что делает Ingress-ресурс сам по себе, без установленного Ingress Controller?
@@ -185,16 +204,70 @@ Ingress Controller — это концептуально тот же Traefik, ч
 `Ingress` — это заявление по стандартной государственной форме, которую понимает **любой** Ingress Controller (переносимо между Traefik, `ingress-nginx` и облачными решениями, но с ограниченным набором полей). `IngressRoute` — это собственный, более подробный бланк именно Traefik (CRD — «Custom Resource Definition», способ Kubernetes дать стороннему продукту свой тип объекта) — со всеми теми же возможностями из прошлой лабы: `Host()`, `PathPrefix()`, приоритеты, пока без middleware (они — сессия 7.6 для заголовков).
 :::
 
-Сначала — переносимый, стандартный `Ingress`:
+Сначала нужен сам сайт: образ `coffeeshop-web` (nginx со статикой из `starter/`), Deployment и Service. API мы уже выкатили в сессии 4, теперь по тому же образцу — frontend:
+
+```bash run
+docker build -t coffeeshop-web:v1 ~/traefik-lab/starter/coffeeshop/web 2>&1 | tail -2
+kind load docker-image coffeeshop-web:v1 --name coffeeshop
+cat > manifests/03-web.yaml <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coffeeshop-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: coffeeshop-web
+  template:
+    metadata:
+      labels:
+        app: coffeeshop-web
+    spec:
+      containers:
+        - name: web
+          image: coffeeshop-web:v1
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coffeeshop-web
+spec:
+  selector:
+    app: coffeeshop-web
+  ports:
+    - port: 80
+      targetPort: 80
+EOF
+kubectl apply -f manifests/03-web.yaml
+kubectl rollout status deployment/coffeeshop-web
+```
+
+### result
+```out auto
+```
+
+Теперь правила маршрутизации. API ждёт адреса `/menu`, `/health`, а снаружи он будет доступен под `/api/...`; значит, перед тем как отдать запрос API, префикс `/api` нужно **отрезать**. В Traefik-лабе это делал middleware `stripPrefix`, здесь — то же самое, но как объект Kubernetes (`Middleware`, ещё один CRD Traefik; подробно middleware — шаг 7.6). Сначала — переносимый, стандартный `Ingress` (с аннотацией, которая подключает этот middleware):
 
 ```bash run
 cat > manifests/04-ingress.yaml <<'EOF'
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api
+spec:
+  stripPrefix:
+    prefixes:
+      - /api
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: coffeeshop
   annotations:
-    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.middlewares: default-strip-api@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
@@ -218,6 +291,7 @@ spec:
 EOF
 kubectl apply -f manifests/04-ingress.yaml
 kubectl get ingress coffeeshop
+kubectl get middleware
 ```
 
 ### result
@@ -279,6 +353,7 @@ kubectl get ingressroute
 :::
 
 ```bash run
+sleep 5   # Traefik подхватывает новые правила за секунды
 curl -s -o /dev/null -w 'HTTP %{http_code}\n' http://shop.localhost/
 curl -s -o /dev/null -w 'HTTP %{http_code}\n' http://shop.localhost/api/health
 ```
@@ -287,7 +362,7 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' http://shop.localhost/api/health
 ```out auto
 ```
 
-Путь запроса целиком: твой Mac (`http://shop.localhost/`) → порт 80 → `extraPortMappings` → control-plane-узел `kind` → Pod Traefik (слушает на этом узле благодаря `hostNetwork: true`) → Traefik смотрит `IngressRoute`/`Ingress` → находит Service `coffeeshop-web`/`coffeeshop-api` → Service находит живой Pod по `selector` → ответ.
+Путь запроса целиком: твой Mac (`http://shop.localhost/`) → порт 80 → `extraPortMappings` → control-plane-узел `kind` → Pod Traefik (слушает на этом узле благодаря `hostPort`) → Traefik смотрит `IngressRoute`/`Ingress` → находит Service `coffeeshop-web`/`coffeeshop-api` → Service находит живой Pod по `selector` → ответ.
 
 ### why
 Это — ровно тот результат, к которому шла вся Traefik-лаба: единый вход с человекочитаемыми именами вместо портов. В Kubernetes он достигается тем же способом (reverse proxy на входе), просто конфигурация Traefik теперь берётся не из меток Docker, а из API кластера.

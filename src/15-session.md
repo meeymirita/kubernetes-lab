@@ -21,9 +21,8 @@ kubectl get nodes
 docker image inspect coffeeshop-api:v1 --format '{{.Id}}' | cut -c1-19
 kind load docker-image coffeeshop-api:v1 --name coffeeshop
 helm repo add traefik https://traefik.github.io/charts && helm repo update
-helm install traefik traefik/traefik --namespace traefik --create-namespace \
-  --set ports.web.hostPort=80 --set ports.websecure.hostPort=443 \
-  --set hostNetwork=true --set service.type=ClusterIP --wait --timeout 3m
+helm install traefik traefik/traefik --version 42.4.0 --namespace traefik --create-namespace \
+  -f traefik-values.yaml --wait --timeout 3m
 kubectl get pods -n traefik
 ```
 
