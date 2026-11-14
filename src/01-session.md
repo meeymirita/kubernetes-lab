@@ -154,8 +154,13 @@ docker images coffeeshop-api
 
 Три инструмента, их нет ни в Docker-, ни в Traefik-лабе — ставим впервые. На Mac — через Homebrew:
 
-```bash run
+```bash
 brew install kubectl kind helm
+```
+
+Проверка, что всё встало:
+
+```bash run
 kubectl version --client
 kind version
 helm version
@@ -234,6 +239,7 @@ EOF
 kind create cluster --config kind-config.yaml --image kindest/node:v1.37.0
 kubectl cluster-info
 kubectl config current-context
+kubectl wait --for=condition=Ready nodes --all --timeout=180s
 kubectl get nodes -o wide
 ```
 
@@ -241,7 +247,7 @@ kubectl get nodes -o wide
 ```out auto
 ```
 
-Что произошло: `kind` подняла три Docker-контейнера (`coffeeshop-control-plane`, `coffeeshop-worker`, `coffeeshop-worker2` — проверь `docker ps`), внутри каждого — настоящий Kubernetes (`kubelet`, `containerd` и так далее, сессия 2). `kubectl cluster-info` показывает адрес API-сервера control-plane. `kubectl config current-context` — записная книжка `~/.kube/config` автоматически получила новую запись `kind-coffeeshop` и переключилась на неё: это и есть **контекст**. `kubectl get nodes` — три узла в статусе `Ready` (может занять до минуты: сетевой плагин должен подняться первым).
+Что произошло: `kind` подняла три Docker-контейнера (`coffeeshop-control-plane`, `coffeeshop-worker`, `coffeeshop-worker2` — проверь `docker ps`), внутри каждого — настоящий Kubernetes (`kubelet`, `containerd` и так далее, сессия 2). `kubectl cluster-info` показывает адрес API-сервера control-plane. `kubectl config current-context` — записная книжка `~/.kube/config` автоматически получила новую запись `kind-coffeeshop` и переключилась на неё: это и есть **контекст**. `kubectl get nodes` сразу после создания может показать `NotReady` (сетевой плагин поднимается последним), поэтому перед ним стоит `kubectl wait --for=condition=Ready nodes --all`: команда ждёт, пока все три узла станут `Ready` (обычно до минуты).
 
 **Про `extraPortMappings`.** Порты 80/443 на твоём Mac теперь ведут внутрь кластера, на control-plane-узел. Это заменяет настоящий облачный `LoadBalancer`, которого у локального `kind` нет (сессия 5 объясняет это подробно).
 
@@ -396,6 +402,7 @@ kubectl config get-contexts
 docker ps -a --filter name=coffeeshop
 docker start coffeeshop-control-plane >/dev/null
 sleep 5
+kubectl wait --for=condition=Ready nodes --all --timeout=180s
 kubectl get nodes
 ```
 
