@@ -155,7 +155,7 @@ spec:
       maxUnavailable: 0
   minReadySeconds: 5
 '
-kubectl set image deployment/coffeeshop-api api=coffeeshop-api:v1 --record=false
+kubectl set image deployment/coffeeshop-api api=coffeeshop-api:v1
 kubectl rollout status deployment/coffeeshop-api
 ```
 
@@ -216,6 +216,8 @@ kubectl rollout history deployment/coffeeshop-api
 ### result
 ```out auto
 ```
+
+Обрати внимание на историю: после отката ревизии **2** и **3**, а ревизии 1 больше нет. Так и задумано: откат создаёт новую ревизию (3) с тем же содержимым, что у старой (1), а старая запись при этом исчезает, чтобы не дублироваться. Столбец `CHANGE-CAUSE` пуст (`<none>`): текст причины появляется, только если задать аннотацию `kubernetes.io/change-cause` (флаг `--record` устарел).
 
 `rollout undo` без аргументов возвращает к **предыдущей** ревизии; `kubectl rollout undo deployment/coffeeshop-api --to-revision=1` — к конкретному номеру из `rollout history`. `rollout pause`/`resume` — поставить выкатку на пауза посреди процесса (например, чтобы вручную проверить первую новую реплику, прежде чем катить остальные) и продолжить.
 
@@ -323,7 +325,7 @@ kubectl rollout status deployment/coffeeshop-api --timeout=15s 2>&1 | tail -3
 ```out auto
 ```
 
-Новый Pod переходит в `CrashLoopBackOff` (контейнер стартует, сразу падает с ошибкой «файл не найден», `kubelet` перезапускает его с нарастающей паузой — подробная таблица статусов в сессии 8.6) — **и именно поэтому** он никогда не станет `Ready`, а `maxUnavailable: 0` **не даёт** rollout продолжиться: старые Pod остаются на месте, пользователи ничего не заметили.
+Новый Pod сначала показывает `Error`, а после нескольких перезапусков переходит в `CrashLoopBackOff` (контейнер стартует, сразу падает с ошибкой «файл не найден», `kubelet` перезапускает его с нарастающей паузой — подробная таблица статусов в сессии 8.6) — **и именно поэтому** он никогда не станет `Ready`, а `maxUnavailable: 0` **не даёт** rollout продолжиться: старые Pod остаются на месте, пользователи ничего не заметили.
 
 **Диагностика по порядку:**
 
