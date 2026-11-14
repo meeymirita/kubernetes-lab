@@ -39,6 +39,8 @@ ConfigMap — это записка на холодильнике с настр�
 kubectl create configmap api-config \
   --from-literal=LOG_LEVEL=info \
   --from-literal=MENU_CACHE_TTL=60 \
+  --from-literal=DB_HOST=db \
+  --from-literal=DB_NAME=coffeeshop \
   --dry-run=client -o yaml > manifests/06-configmap.yaml
 cat manifests/06-configmap.yaml
 kubectl apply -f manifests/06-configmap.yaml
@@ -62,7 +64,7 @@ spec:
                 name: api-config
 '
 kubectl rollout status deployment/coffeeshop-api
-kubectl exec deploy/coffeeshop-api -- env | grep -E 'LOG_LEVEL|MENU_CACHE_TTL'
+kubectl exec deploy/coffeeshop-api -- env | grep -E 'LOG_LEVEL|MENU_CACHE_TTL|DB_HOST|DB_NAME'
 ```
 
 ### result
@@ -125,9 +127,11 @@ spec:
         - name: postgres
           env:
             - name: POSTGRES_USER
+              value: null
               valueFrom:
                 secretKeyRef: {name: db-credentials, key: POSTGRES_USER}
             - name: POSTGRES_PASSWORD
+              value: null
               valueFrom:
                 secretKeyRef: {name: db-credentials, key: POSTGRES_PASSWORD}
 '
@@ -137,6 +141,38 @@ kubectl rollout status deployment/db
 ### result
 ```out auto
 ```
+
+Здесь `value: null` — не случайность: у переменных уже есть открытое `value` из шага 6.3, а в одной переменной нельзя задавать и `value`, и `valueFrom`; `null` в strategic-patch означает «убрать это поле». Без него API ответит ошибкой `may not be specified when value is not empty`.
+
+**Важная ловушка с паролем.** Переменная `POSTGRES_PASSWORD` читается образом PostgreSQL **только при первой инициализации** каталога данных. Наш том (PVC) уже инициализирован старым паролем, поэтому смена Secret **не меняет** пароль внутри базы — она не знает о нём. Меняем пароль самой базе (внутри контейнера подключение по локальному сокету идёт без пароля) и заодно подключаем API к базе через те же Secret и ConfigMap и загружаем таблицы из `init.sql`:
+
+```bash run
+until kubectl exec deploy/db -- pg_isready -U coffeeshop >/dev/null 2>&1; do sleep 2; done
+kubectl exec deploy/db -- psql -U coffeeshop -d coffeeshop -c "ALTER USER coffeeshop PASSWORD 'настоящий-пароль-не-этот'"
+kubectl exec -i deploy/db -- psql -U coffeeshop -d coffeeshop < ~/traefik-lab/starter/coffeeshop/db/init.sql
+kubectl patch deployment coffeeshop-api --type=strategic -p '
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef: {name: db-credentials, key: POSTGRES_USER}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: db-credentials, key: POSTGRES_PASSWORD}
+'
+kubectl rollout status deployment/coffeeshop-api
+kubectl exec deploy/db -- psql -U coffeeshop -d coffeeshop -c "SELECT * FROM menu"
+```
+
+### result
+```out auto
+```
+
+API берёт имя базы и хост из ConfigMap (`DB_HOST`, `DB_NAME` — они пришли через `envFrom` в шаге 7.2), а пользователя и пароль — из Secret; в образе нет ни того, ни другого. Таблицы `menu` и `orders` создал `init.sql` из `starter/` (в Docker Compose это делала папка `docker-entrypoint-initdb.d`; на уже инициализированном томе она не сработала бы, поэтому здесь загружаем вручную — как сделать это автоматически, разберёт сессия 15).
 
 Три типа Secret, которые встретятся дальше: **`Opaque`** (по умолчанию, произвольные пары — наш случай), **`kubernetes.io/dockerconfigjson`** (учётные данные для скачивания образов из приватного registry — используется в `imagePullSecrets`, сессия 3.7), **`kubernetes.io/tls`** (сертификат + приватный ключ для HTTPS — пригодится, если понадобится TLS на Ingress, по аналогии с mkcert из Traefik-лабы).
 
@@ -241,9 +277,11 @@ spec:
         paths:
           - {path: /, pathType: Prefix, backend: {service: {name: adminer, port: {number: 80}}}}
 EOF
+sleep 5   # Traefik подхватывает новые правила за секунды
 curl -s -o /dev/null -w 'adminer: HTTP %{http_code}\n' http://adminer.shop.localhost/
 curl -s -o /dev/null -w 'api: HTTP %{http_code}\n' http://shop.localhost/api/health
 curl -s -o /dev/null -w 'web: HTTP %{http_code}\n' http://shop.localhost/
+curl -s http://shop.localhost/api/menu; echo
 ```
 
 ### result
@@ -303,7 +341,7 @@ curl -s -o /dev/null -w 'web: HTTP %{http_code}\n' http://shop.localhost/
 :::
 
 ```bash run
-kubectl patch deployment coffeeshop-api --type=json -p='[{"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"DB_PASSWORD","valueFrom":{"secretKeyRef":{"name":"db-credentials","key":"NO_SUCH_KEY"}}}}]'
+kubectl patch deployment coffeeshop-api --type=json -p='[{"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"API_TOKEN","valueFrom":{"secretKeyRef":{"name":"db-credentials","key":"NO_SUCH_KEY"}}}}]'
 sleep 8
 kubectl get pods -l app=coffeeshop-api
 newpod=$(kubectl get pods -l app=coffeeshop-api --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
