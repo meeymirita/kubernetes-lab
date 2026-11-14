@@ -65,10 +65,11 @@ spec:
 
 :::
 
-Применим Pod из прошлого шага и понаблюдаем за фазами:
+Применим Pod из прошлого шага и понаблюдаем за фазами. Одно предупреждение заранее: узлы `kind` не видят образы твоего локального Docker, поэтому образ `coffeeshop-api:v1` сначала нужно «занести» в кластер командой `kind load docker-image` (зачем и как это устроено — в шаге 3.6; пока просто выполни её, иначе Pod застрянет в `ErrImagePull`):
 
 ```bash run
 cd ~/kubernetes-lab
+kind load docker-image coffeeshop-api:v1 --name coffeeshop
 kubectl apply -f manifests/00-demo-pod.yaml 2>/dev/null
 kubectl apply -f - <<'EOF'
 apiVersion: v1
@@ -253,12 +254,14 @@ kill %1
 **DNS внутри кластера.** Каждый Service автоматически получает DNS-имя вида `coffeeshop-api.default.svc.cluster.local` (или просто `coffeeshop-api`, если обращаться из того же namespace) — за это отвечает `CoreDNS` (которую мы видели в `kube-system`, шаг 2.1). Проверим из Pod внутри кластера:
 
 ```bash run
-kubectl run dns-test --image=busybox:1.36 --rm -it --restart=Never -- nslookup coffeeshop-api
+kubectl run dns-test --image=busybox:1.36 --rm -it --restart=Never -- sh -c 'sleep 2; nslookup coffeeshop-api'
 ```
 
 ### result
 ```out auto
 ```
+
+Что в выводе: `Server: 10.96.0.10` — это адрес `CoreDNS` внутри кластера. Строки `NXDOMAIN` — не ошибка: имя `coffeeshop-api` резолвер сначала пробует дописывать к разным «доменам поиска» из `/etc/resolv.conf` Pod (`cluster.local`, `svc.cluster.local`) и получает «такого нет»; настоящий ответ — блок `Name: coffeeshop-api.default.svc.cluster.local` с адресом Service. `sleep 2` в команде нужен, чтобы терминал успел подключиться к Pod: иначе очень короткий контейнер успевает завершиться раньше, и `kubectl` печатает вывод дважды (из лога).
 
 ### why
 Понимание, что DNS-имя сервиса «просто работает» внутри кластера — то, что заменяет ручной IP или `/etc/hosts` из Docker-лабы. API CoffeeShop может ходить к базе данных по имени `db` (сессия 6) ровно как ходил в Compose — разница только в том, что это DNS-имя резолвится в **текущий IP Service**, а не контейнера.
@@ -287,7 +290,7 @@ kubectl run dns-test --image=busybox:1.36 --rm -it --restart=Never -- nslookup c
 Твой Mac и кластер `kind` — это как два разных дома с разными холодильниками: то, что ты купила (собрала образ) в холодильнике на кухне (локальный Docker), автоматически не появляется в холодильнике у соседей (узлы `kind`). `kind load docker-image` — это ты лично отнесла пакет продуктов туда руками.
 :::
 
-Мы уже собрали `coffeeshop-api:v1` в шаге 1.3 — но кластер `kind` **не видит** локальный Docker Desktop напрямую: его узлы — отдельные контейнеры со своим `containerd` внутри.
+Мы уже собрали `coffeeshop-api:v1` в шаге 1.3 — но кластер `kind` **не видит** локальный Docker Desktop напрямую: его узлы — отдельные контейнеры со своим `containerd` внутри. В шаге 3.2 ты уже выполнила `kind load` вслепую — здесь разберём, что она сделала. Повторный запуск безопасен: `kind` просто загрузит образ на узлы ещё раз (он может написать `not yet present`, даже если образ уже загружен: `kind` сверяет идентификатор образа в Docker, а `containerd` на узле хранит его под другим).
 
 ```bash run
 kind load docker-image coffeeshop-api:v1 --name coffeeshop
@@ -333,7 +336,7 @@ docker exec coffeeshop-worker crictl images 2>&1 | grep coffeeshop
 `ImagePullBackOff` — Kubernetes честно говорит: «я пыталась скачать образ, не получилось, подожду немного и попробую снова, и каждый раз жду дольше». Это не намертво зависший статус — это терпеливый повтор с нарастающей паузой, пока причина не будет исправлена.
 :::
 
-Два варианта поломки — опечатка в имени образа и `imagePullPolicy: Never` без локального образа:
+Два варианта поломки — опечатка в имени образа и `imagePullPolicy: Never` для образа, которого на узлах нет (мы загружали только `coffeeshop-api:v1`, тега `v2` в кластере нет):
 
 ```bash run
 kubectl apply -f - <<'EOF'
@@ -354,7 +357,7 @@ metadata:
 spec:
   containers:
     - name: api
-      image: coffeeshop-api:v1
+      image: coffeeshop-api:v2
       imagePullPolicy: Never
 EOF
 sleep 10
@@ -367,7 +370,7 @@ kubectl describe pod broken-typo | tail -8
 ```
 
 - **`broken-typo`** — тега `v99-does-not-exist` не существует ни локально, ни в каком-либо registry (образ `coffeeshop-api` вообще никуда не публиковался — он существует только как результат `kind load`). Статус пройдёт через `ErrImagePull` (первая попытка, явная ошибка) к **`ImagePullBackOff`** (повторные попытки с нарастающей паузой: 10 с, 20 с, 40 с… до потолка).
-- **`broken-neverpull`** (если этот Pod на узле, куда образ `coffeeshop-api:v1` не загружали `kind load`, или если он вообще не был загружен) — статус **`ErrImageNeverPull`**: `imagePullPolicy: Never` запрещает любую попытку скачивания, и раз локально образа нет — тупик, который сам себя не починит, в отличие от `ImagePullBackOff`.
+- **`broken-neverpull`** (образа `coffeeshop-api:v2` на узлах нет: `kind load` мы делали только для `v1`; с `v1` этот же Pod спокойно запустился бы, потому что образ на узле есть) — статус **`ErrImageNeverPull`**: `imagePullPolicy: Never` запрещает любую попытку скачивания, и раз локально образа нет — тупик, который сам себя не починит, в отличие от `ImagePullBackOff`.
 
 **Починка:** для `broken-typo` — исправить тег на существующий (`v1`); для `broken-neverpull` — либо убрать `imagePullPolicy: Never` (тогда Kubernetes попробует скачать из registry, тоже не найдёт — здесь это не поможет, так как образ не публичный), либо убедиться, что `kind load docker-image` выполнен для **того узла**, куда Pod запланирован.
 
