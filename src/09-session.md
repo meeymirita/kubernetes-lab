@@ -79,7 +79,7 @@ kubectl wait -n dev --for=condition=Ready pod/api-client --timeout=60s
 kubectl exec -n dev api-client -- sh -c '
 SA=/var/run/secrets/kubernetes.io/serviceaccount
 TOKEN=$(cat $SA/token)
-echo "pods in dev:"; curl -s --cacert $SA/ca.crt -H "Authorization: Bearer $TOKEN" https://kubernetes.default.svc/api/v1/namespaces/dev/pods | grep -c "\"kind\": \"Pod\""
+echo "pods in dev:"; curl -s --cacert $SA/ca.crt -H "Authorization: Bearer $TOKEN" https://kubernetes.default.svc/api/v1/namespaces/dev/pods | grep -m1 \"kind\"
 echo "secrets in dev:"; curl -s --cacert $SA/ca.crt -H "Authorization: Bearer $TOKEN" https://kubernetes.default.svc/api/v1/namespaces/dev/secrets | grep "\"reason\""
 '
 ```
@@ -320,6 +320,7 @@ spec:
       ports:
         - {port: 80}
 EOF
+sleep 5   # сетевой плагин применяет политику за секунды
 echo "--- после политики, api:"
 kubectl exec -n shop-np api -- wget -qO- -T 3 http://db | head -1
 echo "--- после политики, web:"
@@ -336,7 +337,7 @@ kubectl exec -n shop-np web -- wget -qO- -T 3 http://db | head -1 || echo "web: 
 В этом шаге главное — привычка **проверять**, что политика реально работает, а не верить `kubectl get netpol`. Поэтому сначала шли команды «до», потом «после». Если `web` всё равно достучался — ваш CNI не применяет политики (см. «Если не получилось»), и написанные правила создают лишь **ложное чувство безопасности**.
 
 ### deep Если не получилось
-- **`web` получает страницу и после политик** — CNI не поддерживает `NetworkPolicy`. Это зависит от версии плагина `kindnet` в вашем `kind`: в старых версиях политик не было. Решение — кластер с `Calico`: в `kind-config.yaml` указываешь `networking: {disableDefaultCNI: true, podSubnet: 192.168.0.0/16}`, создаёшь кластер (узлы будут `NotReady`, пока нет сети), затем ставишь оператор и ресурсы `Calico` v3.31.4 из документации проекта (`kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/tigera-operator.yaml`, затем `custom-resources.yaml` оттуда же) и ждёшь `kubectl get pods -n calico-system`. Переустановка кластера сотрёт текущий стенд — делай это в **отдельном** кластере (`kind create cluster --name netpol --config …`).
+- **`web` получает страницу и после политик** — CNI не поддерживает `NetworkPolicy`. В `kind` v0.33 встроенный `kindnet` политики применяет (проверено при написании лабы), но в более старых версиях `kind` их не было. Решение — кластер с `Calico`: в `kind-config.yaml` указываешь `networking: {disableDefaultCNI: true, podSubnet: 192.168.0.0/16}`, создаёшь кластер (узлы будут `NotReady`, пока нет сети), затем ставишь оператор и ресурсы `Calico` v3.31.4 из документации проекта (`kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/tigera-operator.yaml`, затем `custom-resources.yaml` оттуда же) и ждёшь `kubectl get pods -n calico-system`. Переустановка кластера сотрёт текущий стенд — делай это в **отдельном** кластере (`kind create cluster --name netpol --config …`).
 - **Нужно ограничить и исходящий трафик** — добавь `Egress` в `policyTypes` и правила `egress`. Не забудь разрешить DNS (порт 53 к `kube-dns` в `kube-system`), иначе имена перестанут разрешаться.
 
 ### quiz
@@ -407,6 +408,7 @@ spec:
   policyTypes: [Ingress]
 EOF
 kubectl delete networkpolicy db-allow-api -n shop-np
+sleep 5
 echo "--- web после «политики»:"
 kubectl exec -n shop-np web -- wget -qO- -T 3 http://db | head -1
 echo "--- какие Pod выбирает политика:"
@@ -440,6 +442,7 @@ spec:
         - podSelector: {matchLabels: {app: api}}
       ports: [{port: 80}]
 EOF
+sleep 5
 echo "api:"; kubectl exec -n shop-np api -- wget -qO- -T 3 http://db | head -1
 echo "web:"; kubectl exec -n shop-np web -- wget -qO- -T 3 http://db | head -1 || echo "таймаут: заблокировано"
 ```
