@@ -13,13 +13,16 @@ Namespace — это отдельные квартиры в одном доме 
 kubectl create namespace dev
 kubectl create namespace prod
 kubectl get namespaces
-kubectl config set-context --current --namespace=dev
+kubectl get pods -n dev
+kubectl get pods -n default
 kubectl config view --minify | grep namespace
 ```
 
 ### result
 ```out auto
 ```
+
+Чтобы не писать `-n dev` в каждой команде, можно сменить namespace по умолчанию у текущего контекста: `kubectl config set-context --current --namespace=dev`. **Мы этого делать не будем** — весь наш стек живёт в `default`, и остальные шаги этой лабы написаны для него; но запомни команду (и как вернуться: `--namespace=default`).
 
 Большинство объектов (Pod, Deployment, Service, ConfigMap, Secret) — **namespaced** (существуют внутри конкретного namespace); немногие — **cluster-scoped** (Node, PersistentVolume, Namespace сам, ClusterRole — сессия 9.1): их имена уникальны на весь кластер. `kubectl config set-context --current --namespace=dev` меняет **namespace по умолчанию** для текущего контекста — без `-n` каждой команде; `kubectl get pods -A` (или `--all-namespaces`) покажет объекты из всех namespace сразу.
 
@@ -98,13 +101,13 @@ kubectl get pods -l app=coffeeshop-api
 
 `READY` в `kubectl get pods` теперь показывает **и фазу, и готовность** (`1/1` — контейнер `Running` и проба готовности прошла; `0/1` — `Running`, но ещё/уже не готов). Это ровно то, от чего зависит, попадёт ли Pod в `endpoints` Service (сессия 3.4) — **не готовый Pod не получает трафик**, даже если он `Running`.
 
-Проверим `livenessProbe` в деле — заставим `/health` временно отвечать ошибкой (используем встроенный в CoffeeShop API эндпоинт `/flaky` из `starter/`, который можно включить в «нездоровый» режим):
+Проверим `livenessProbe` в деле — заставим `/health` временно отвечать ошибкой (используем служебный эндпоинт `POST /sick` из `starter/`: после него `GET /health` отвечает `500`, пока не вызовешь `POST /heal`):
 
 ```bash run
-kubectl exec deploy/coffeeshop-api -- curl -s -X POST localhost:3000/drop 2>&1 | head -3
-sleep 25
+kubectl exec deploy/coffeeshop-api -- wget -qO- --post-data='' http://localhost:3000/sick; echo
+sleep 70
 kubectl get pods -l app=coffeeshop-api
-kubectl describe pod -l app=coffeeshop-api | grep -A2 Liveness
+kubectl get events --sort-by=.lastTimestamp | grep -iE 'unhealthy|killing' | tail -4
 ```
 
 ### result
@@ -164,10 +167,11 @@ kubectl describe nodes | grep -A5 "Allocated resources"
 Воспроизведём `OOMKilled` специально:
 
 ```bash run
-kubectl run oom-test --image=polinux/stress --limits=memory=50Mi --requests=memory=50Mi --restart=Never -- stress --vm 1 --vm-bytes 150M --vm-hang 0
-sleep 5
+kubectl run oom-test --image=polinux/stress --restart=Never \
+  --overrides='{"spec":{"containers":[{"name":"oom-test","image":"polinux/stress","command":["stress","--vm","1","--vm-bytes","150M","--vm-hang","0"],"resources":{"requests":{"memory":"50Mi"},"limits":{"memory":"50Mi"}}}]}}'
+sleep 15
 kubectl get pod oom-test
-kubectl describe pod oom-test | grep -A3 "Last State"
+kubectl describe pod oom-test | grep -E "State:|Reason:|Exit Code:"
 kubectl delete pod oom-test
 ```
 
@@ -175,7 +179,7 @@ kubectl delete pod oom-test
 ```out auto
 ```
 
-Статус покажет `OOMKilled` в `Last State` — контейнер пытался занять 150 МБ при лимите 50 МБ и был убит ядром Linux (`cgroup` отследил превышение).
+Статус покажет `OOMKilled` (в `describe` — `Reason: OOMKilled`, код выхода `137`; у Pod с `restartPolicy: Always` та же причина видна в разделе `Last State`) — контейнер пытался занять 150 МБ при лимите 50 МБ и был убит ядром Linux (`cgroup` отследил превышение).
 
 **QoS-классы** (назначаются автоматически, не задаются вручную): **`Guaranteed`** — `requests` **равны** `limits` у всех контейнеров Pod (самый высокий приоритет при нехватке ресурсов на узле); **`Burstable`** — `requests` заданы, но меньше `limits` (как у нашего API выше); **`BestEffort`** — ни `requests`, ни `limits` не заданы вовсе (первый кандидат на вытеснение при нехватке ресурсов на узле).
 
@@ -273,8 +277,8 @@ kubectl delete job db-migrate
 `kubectl` — это печатная машинка: точно, но по одной команде за раз. `k9s` — пульт с множеством кнопок прямо в терминале: списки объектов, логи, `exec`, удаление — всё с клавиатуры, без повторного набора имён. Dashboard — то же самое, но в браузере, для тех, кому привычнее мышь.
 :::
 
-```bash run
-brew install derailed/k9s/k9s 2>&1 | tail -3
+```bash
+brew install derailed/k9s/k9s
 ```
 
 `k9s` запускается командой `k9s` прямо в терминале (интерактивный интерфейс — не выполняется в автоматическом прогоне методички, пробуй сама): список Pod по namespace, `l` — логи выбранного, `d` — describe, `s` — shell внутрь, `:deploy` — переключиться на Deployment. Это не замена `kubectl` (под капотом он вызывает те же API-запросы), а более быстрый способ **осматриваться**.
@@ -321,7 +325,7 @@ brew install derailed/k9s/k9s 2>&1 | tail -3
 
 **`kubectl debug`** — последний инструмент на крайний случай: когда у контейнера нет шелла (минимальный/distroless образ, сессия 3.3) или нужно посмотреть на Pod «снаружи», не трогая его:
 
-```bash run
+```bash
 kubectl debug -it coffeeshop-api-<под-реальным-именем> --image=busybox:1.36 --target=api -- sh
 ```
 
@@ -391,6 +395,7 @@ spec:
           env:
             - {name: SECRET_X, valueFrom: {secretKeyRef: {name: no-such-secret, key: x}}}
 EOF
+sleep 20
 kubectl get deploy,pod -l 'app in (hell-web,hell-api)'
 ```
 
