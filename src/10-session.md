@@ -122,7 +122,7 @@ kubectl get hpa coffeeshop-api
 ```out auto
 ```
 
-Колонка `TARGETS` вида `3%/50%` — «сейчас 3 % от запрошенного CPU, цель 50 %». `REPLICAS` быстро станет равным `minReplicas` (2), даже если Deployment был с одной репликой: границу HPA поддерживает всегда. Короткая запись того же — императивная: `kubectl autoscale deployment coffeeshop-api --min=2 --max=6 --cpu-percent=50`; в проекте храним манифест, потому что он живёт в Git (шаг 2.3).
+Колонка `TARGETS` вида `3%/50%` — «сейчас 3 % от запрошенного CPU, цель 50 %». `REPLICAS` быстро станет равным `minReplicas` (2), даже если Deployment был с одной репликой: границу HPA поддерживает всегда. Короткая запись того же — императивная: `kubectl autoscale deployment coffeeshop-api --min=2 --max=6 --cpu=50%`; в проекте храним манифест, потому что он живёт в Git (шаг 2.3).
 
 ### why
 Версия `autoscaling/v2` умеет много метрик сразу (CPU, память, свои метрики), и это единственный вариант, который стоит использовать; `v1` — только CPU. Формула, по которой HPA считает: `нужно реплик = ceil(текущих × (текущая метрика / целевая))` — зная её, можно предсказать поведение, не гадая.
@@ -151,7 +151,7 @@ kubectl get hpa coffeeshop-api
 Нагрузку создаём изнутри кластера — не нужны `k6` или `hey` на Mac, достаточно `busybox`. Для живого просмотра открой **второй терминал** и выполни в нём `kubectl get hpa coffeeshop-api -w`.
 
 ```bash run
-kubectl run load --image=busybox:1.36 --restart=Never -- sh -c 'while true; do for i in 1 2 3 4 5 6 7 8; do wget -q -O- http://coffeeshop-api:3000/menu >/dev/null & done; wait; done'
+kubectl run load --image=busybox:1.36 --restart=Never -- sh -c 'while true; do for i in 1 2 3 4 5 6 7 8; do wget -q -O- http://coffeeshop-api/menu >/dev/null & done; wait; done'
 sleep 90
 kubectl get hpa coffeeshop-api
 kubectl top pods -l app=coffeeshop-api
@@ -281,7 +281,7 @@ Pod застрял в `Pending`, а в событиях — `FailedScheduling �
 
 ```bash run
 kubectl create deployment norequests --image=nginx:alpine
-kubectl autoscale deployment norequests --min=1 --max=3 --cpu-percent=50
+kubectl autoscale deployment norequests --min=1 --max=3 --cpu=50%
 sleep 40
 kubectl get hpa norequests
 kubectl describe hpa norequests | grep -B1 -A3 -i 'ScalingActive\|FailedGet'
@@ -295,7 +295,7 @@ kubectl describe hpa norequests | grep -B1 -A3 -i 'ScalingActive\|FailedGet'
 
 ```bash run
 kubectl set resources deployment norequests --requests=cpu=50m
-sleep 45
+sleep 90
 kubectl get hpa norequests
 ```
 
